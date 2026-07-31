@@ -8,16 +8,23 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        /* Primary — 화면당 1~2개, 신규 등록/핵심 처리 액션 */
+        default: "bg-primary text-primary-foreground hover:bg-primary-hover",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        /* Secondary(Tint) — 소프트 배경 + Primary 텍스트, 행/툴바 보조 액션 */
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--primary)_12%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         link: "text-primary underline-offset-4 hover:underline",
+        /* 소프트 시맨틱 아이콘 버튼(§5.1) — 행 단위 액션 전용 (예: 다운로드=info, 삭제는 destructive 사용) */
+        "info-soft": "bg-info-bg text-info hover:bg-info/15",
+        "success-soft": "bg-success-bg text-success hover:bg-success/15",
+        "warning-soft": "bg-warning-bg text-warning hover:bg-warning/15",
+        "danger-soft": "bg-danger-bg text-danger hover:bg-danger/15",
       },
       size: {
         default:
