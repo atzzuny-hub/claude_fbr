@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# vendored Anthropic skills (독점 라이선스 — 저장소에 커밋하지 않음, 로컬에서만 사용)
+.claude/skills/
