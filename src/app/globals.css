@@ -4,11 +4,26 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * REVE 풀필먼트 어드민 — 디자인 토큰 (리브온 솔루션 디자인 템플릿 리스타일)
+ * ─────────────────────────────────────────────────────────────────
+ * 출처: _templates/solution-design-template.md §3(디자인 토큰), 레퍼런스 style01~03.jpg.
+ * 방향: 진보라(Primary Indigo #381E96) 크롬(사이드바 > 헤더 > 캔버스 명도 위계) +
+ * 라이트 뉴트럴 캔버스(#F8F9FA) + 화이트 카드(#FFFFFF)의 데이터 밀도 높은 어드민.
+ * 상태(성공/경고/위험/정보)는 브랜드 보라와 분리된 보편적 시맨틱 색으로 별도 토큰화한다
+ * (보라 = "브랜드/액션", 신호색 = "상태" — 혼동 방지). 숫자류(수량/참조번호 등)는
+ * --font-mono(Geist Mono)로 tabular-nums 정렬해 운영 데이터임을 시각적으로 구분한다
+ * (컴포넌트 쪽에서 적용).
+ *
+ * 콘텐츠 폭: 템플릿 §3.3의 "콘텐츠 최대폭 1200~1280px 중앙 정렬"은 이 프로젝트에는
+ * 적용하지 않는다(사용자 오버라이드) — 콘텐츠는 셸(사이드바 제외) 안에서 가용 폭 전체를 쓴다.
+ */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -18,6 +33,9 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-header: var(--header);
+  --color-header-foreground: var(--header-foreground);
+  --color-header-border: var(--header-border);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -39,48 +57,157 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+
+  /* REVE 브랜드(진보라) 스케일 — bg-brand-600, text-brand-700 등으로 사용.
+   * 300/200단은 템플릿의 accent-lavender/accent-lavender-soft와 동일 값을 공유한다. */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-950: var(--brand-950);
+
+  /* 템플릿 §3.1 리브온 토큰 — Primary 위계·강조 서피스 */
+  --color-primary-hover: var(--primary-hover);
+  --color-accent-lavender: var(--accent-lavender);
+  --color-accent-lavender-soft: var(--accent-lavender-soft);
+
+  /* 캔버스/행 배경 위계 — 페이지(bg-page) < 카드(bg-card) < 교차행 틴트(row-alt) */
+  --color-row-alt: var(--bg-row-alt);
+
+  /* 3단 텍스트 위계 — foreground(본문)/muted-foreground(보조) 외에 더 조용한 3단(메타·컬럼라벨) */
+  --color-tertiary-foreground: var(--text-tertiary);
+
+  /* 상태 시맨틱 톤(소프트 배경 + 진한 텍스트) — StatusBadge/StatusStepper/아이콘 버튼에서 사용.
+   * 브랜드 보라와 분리된 보편적 신호색: 완료=success, 진행/주의=warning, 정보=info, 오류=danger */
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
+  /* 컨테이너(카드/테이블/검색패널) 라디우스 — 템플릿 §3.3 "컨테이너 카드 16px"에 맞춰 정확히 16px */
+  --radius-2xl: calc(var(--radius) * 2);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* 데이터 밀도 높은 어드민 톤 — 버튼/인풋/행 카드는 8px 안팎으로 촘촘하게,
+   * 컨테이너(위 --radius-2xl)만 16px로 한 단 크게 둔다 */
+  --radius: 0.5rem;
+
+  /* REVE 브랜드(진보라) 스케일 — 단일 출처. 600=Primary(#381E96), 700=Primary hover(#2B137E),
+   * 300/200=accent-lavender(#928FEE)/soft(#D8D2FC)와 동일 값을 재사용해 하나의 색 체계로 수렴시킨다. */
+  --brand-50: #f4f2fc;
+  --brand-100: #e9e5f9;
+  --brand-200: #d8d2fc;
+  --brand-300: #928fee;
+  --brand-400: #6c4fd1;
+  --brand-500: #4c2fb0;
+  --brand-600: #381e96;
+  --brand-700: #2b137e;
+  --brand-800: #200f63;
+  --brand-900: #170b49;
+  --brand-950: #0f0731;
+
+  /* 리브온 토큰 원본값(§3.1) — 브랜드 스케일과 별도로 명시된 값은 리터럴로 고정한다 */
+  --primary-hover: var(--brand-700); /* #2B137E */
+  --primary-soft: #edeafb;
+  --primary-soft-text: var(--brand-600); /* #381E96 — Tint 버튼/필 텍스트 */
+  --accent-lavender: var(--brand-300); /* #928FEE */
+  --accent-lavender-soft: var(--brand-200); /* #D8D2FC */
+
+  /* 헤더 — 컬러 헤더형(변형 A) 유지, 진한 인디고 + 화이트 텍스트 */
+  --header-bg: #351898;
+
+  /* 본문 — neutral 기반의 밝은 캔버스 (카드는 --card로 한 단 더 밝게 분리) */
+  --bg-page: #f8f9fa;
+  --bg-card: #ffffff;
+  --bg-row-alt: #fafafd;
+
+  --text-primary: #212121;
+  --text-secondary: #757575;
+  --text-tertiary: #999999;
+
+  --border-color: #dee2e6;
+
+  /* 상태 시맨틱(라이트) */
+  --success: #1d9e6f;
+  --success-bg: #e9f7f0;
+  --warning: #d97706;
+  --warning-bg: #fdf3e7;
+  --danger: #e5484d;
+  --danger-bg: #fdecec;
+  --info: #2563eb;
+  --info-bg: #eaf1fe;
+
+  /* 섀도(인디고 틴트) — 컨테이너/행/선택행 3단 */
+  --shadow-container: 0 8px 24px rgba(30, 20, 80, 0.06);
+  --shadow-row: 0 2px 6px rgba(30, 20, 80, 0.05);
+  --shadow-row-hover: 0 6px 14px rgba(30, 20, 80, 0.08);
+  --shadow-row-selected: 0 6px 16px rgba(56, 30, 150, 0.12);
+
+  /* 본문 캔버스 */
+  --background: var(--bg-page);
+  --foreground: var(--text-primary);
+  --card: var(--bg-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-card);
+  --popover-foreground: var(--text-primary);
+
+  /* 액션(버튼/링크/포커스)은 브랜드 보라 */
+  --primary: var(--brand-600);
+  --primary-foreground: #ffffff;
+
+  /* Secondary = Tint 버튼(소프트 배경 + Primary 텍스트) — primary-soft를 그대로 매핑 */
+  --secondary: var(--primary-soft);
+  --secondary-foreground: var(--primary-soft-text);
+
+  --muted: #f1f3f5;
+  --muted-foreground: var(--text-secondary);
+
+  /* 드롭다운/셀렉트 등 인터랙션 hover 배경도 primary-soft 틴트로 통일 */
+  --accent: var(--primary-soft);
+  --accent-foreground: var(--primary);
+
+  --destructive: var(--danger);
+  --border: var(--border-color);
+  --input: var(--border-color);
+  --ring: var(--primary);
+
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+
+  /* 사이드바 — 크롬 중 가장 어두운 단(진보라, 헤더보다 짙게) */
+  --sidebar: var(--brand-900);
+  --sidebar-foreground: #f1eefc;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: var(--accent-lavender);
+
+  /* 헤더 — 사이드바보다 한 단 밝은 인디고 (사이드바 > 헤더 > 캔버스 명도 위계) */
+  --header: var(--header-bg);
+  --header-foreground: #ffffff;
+  --header-border: rgba(255, 255, 255, 0.12);
 }
 
 .dark {
@@ -90,31 +217,50 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: var(--brand-400);
+  --primary-hover: var(--brand-300);
+  --primary-foreground: oklch(0.145 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+
+  --success: #4ade80;
+  --success-bg: oklch(0.4 0.09 155 / 25%);
+  --warning: #fbbf24;
+  --warning-bg: oklch(0.45 0.1 70 / 25%);
+  --danger: #f87171;
+  --danger-bg: oklch(0.45 0.12 25 / 25%);
+  --info: #60a5fa;
+  --info-bg: oklch(0.45 0.1 250 / 25%);
+
+  --destructive: var(--danger);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: var(--brand-400);
+
+  --bg-row-alt: oklch(1 0 0 / 4%);
+
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+
+  --sidebar: var(--brand-950);
+  --sidebar-foreground: #f1eefc;
+  --sidebar-primary: var(--brand-600);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(255, 255, 255, 0.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: var(--accent-lavender);
+
+  --header: var(--brand-950);
+  --header-foreground: #ffffff;
+  --header-border: rgba(255, 255, 255, 0.12);
 }
 
 @layer base {
