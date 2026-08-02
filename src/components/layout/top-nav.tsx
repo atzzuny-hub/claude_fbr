@@ -25,14 +25,15 @@ const FALLBACK_MORE_WIDTH = 84;
 
 const navLinkClass =
   "relative flex h-full shrink-0 items-center whitespace-nowrap px-3 text-sm font-medium text-header-foreground/70 outline-none transition-colors hover:text-header-foreground focus-visible:text-header-foreground";
-const navLinkActiveClass = "text-header-foreground font-semibold";
+const navLinkActiveClass =
+  "font-semibold text-primary hover:text-primary focus-visible:text-primary";
 const navUnderlineClass =
-  "pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-header-foreground";
+  "pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-primary";
 const moreTriggerClass = cn(navLinkClass, "cursor-pointer gap-1 data-popup-open:text-header-foreground");
 
 /**
- * 글로벌 탑메뉴 — 인디고 헤더 안에서 메뉴를 가로로 나열한다(솔루션 디자인 템플릿 §4.1,
- * "상단바: 로고 | 글로벌 메뉴(활성=언더라인/볼드)").
+ * 글로벌 탑메뉴 — 화이트 헤더 안에서 메뉴를 가로로 나열한다(레퍼런스 이미지:
+ * "상단바: 로고 | 글로벌 메뉴", 활성 = 보라(Primary) 텍스트 + 언더라인).
  * NAV_ITEMS는 lucide 아이콘(컴포넌트 참조)을 포함해 서버→클라이언트 props로 직렬화할 수
  * 없으므로, role(순수 문자열)만 받아 이 컴포넌트(클라이언트) 안에서 직접 필터링한다.
  *
@@ -96,8 +97,8 @@ export function TopNav({ role }: TopNavProps) {
     const observer = new ResizeObserver(() => recalc());
     observer.observe(container);
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recalc, items.length]);
+    // pathname — 활성 항목이 바뀌면 볼드 위치가 옮겨져 측정 폭도 달라진다
+  }, [recalc, items.length, pathname]);
 
   const visibleItems = items.slice(0, visibleCount);
   const overflowItems = items.slice(visibleCount);
@@ -109,22 +110,33 @@ export function TopNav({ role }: TopNavProps) {
       aria-label="글로벌 메뉴"
       className="relative flex h-full min-w-0 flex-1 items-center overflow-hidden"
     >
-      {/* 측정 전용 — 화면에는 보이지 않지만(레이아웃 흐름 밖) 실제 렌더 폭을 재는 데 쓴다 */}
+      {/* 측정 전용 — 화면에는 보이지 않지만(레이아웃 흐름 밖) 실제 렌더 폭을 재는 데 쓴다.
+       * 아래 실제 목록과 구조·클래스를 그대로 맞춘다(섹션 구분선, 활성 항목의 볼드까지) —
+       * 어긋나면 그 차이만큼 마지막 항목이 잘려 보인다. */}
       <ul
         ref={measureRef}
         aria-hidden="true"
         className="pointer-events-none invisible absolute top-0 left-0 flex items-center gap-1"
       >
-        {items.map((item) => (
-          <li key={item.key} className={navLinkClass}>
-            {item.label}
-          </li>
-        ))}
+        {items.map((item, index) => {
+          const prevSection = items[index - 1]?.section;
+          const showDivider = prevSection !== undefined && prevSection !== item.section;
+          return (
+            <li key={item.key} className="flex shrink-0 items-center">
+              {showDivider && <span className="mr-1 h-4 w-px shrink-0" />}
+              <span className={cn(navLinkClass, isActive(item) && navLinkActiveClass)}>
+                {item.label}
+              </span>
+            </li>
+          );
+        })}
       </ul>
+      {/* 위치 클래스를 moreTriggerClass 뒤에 둬야 한다 — navLinkClass의 `relative`가 twMerge에서
+       * 뒤에 오는 쪽에 밀려, 순서를 바꾸면 이 요소가 흐름 안에 남아 내비 폭을 실제로 잡아먹는다 */}
       <div
         ref={moreMeasureRef}
         aria-hidden="true"
-        className={cn("pointer-events-none invisible absolute top-0 left-0", moreTriggerClass)}
+        className={cn(moreTriggerClass, "pointer-events-none invisible absolute top-0 left-0")}
       >
         더보기
         <ChevronDown className="size-3.5" />
@@ -138,7 +150,7 @@ export function TopNav({ role }: TopNavProps) {
           return (
             <li key={item.key} className="flex h-full shrink-0 items-center">
               {showDivider && (
-                <span className="mr-1 h-4 w-px shrink-0 bg-white/20" aria-hidden="true" />
+                <span className="mr-1 h-4 w-px shrink-0 bg-border" aria-hidden="true" />
               )}
               <Link
                 href={item.href}

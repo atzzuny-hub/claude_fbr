@@ -5,19 +5,20 @@ import { delay, matchesKeyword, paginate, withinDateRange } from "./utils";
 
 /**
  * Inbound (입고현황) — 클라이언트 소유 + 물류 모델, 역할 스코핑 대상(F001/F012/F013).
- * dateField 허용값: "createdAt" | "expectedDate"(기본) | "receivedDate".
+ * dateField 허용값: "receiptDate"(입고접수일, 기본) | "arrivalDate"(창고도착일) | "completedDate"(입고 완료일).
+ * 아직 도착/완료되지 않은 행은 그 날짜가 null이므로 해당 기준일자로 기간 검색하면 결과에서 빠진다.
  */
 const inbounds: Inbound[] = [...mockInbounds];
 
 function resolveDate(row: Inbound, dateField?: string): string | null {
   switch (dateField) {
-    case "createdAt":
-      return row.createdAt;
-    case "receivedDate":
-      return row.receivedDate;
-    case "expectedDate":
+    case "arrivalDate":
+      return row.arrivalDate;
+    case "completedDate":
+      return row.completedDate;
+    case "receiptDate":
     default:
-      return row.expectedDate;
+      return row.receiptDate;
   }
 }
 
@@ -32,7 +33,18 @@ export async function getInbounds(params: InboundSearchParams = {}): Promise<Pag
     if (params.country && row.country !== params.country) return false;
     if (params.status && row.status !== params.status) return false;
     if (!withinDateRange(resolveDate(row, params.dateField), params.dateFrom, params.dateTo)) return false;
-    if (!matchesKeyword(params.keyword, row.referenceNo, row.skuCode, row.skuName, row.clientName)) return false;
+    if (
+      !matchesKeyword(
+        params.keyword,
+        row.orderNo,
+        row.receiptNo,
+        row.skuCode,
+        row.skuName,
+        row.clientName,
+      )
+    ) {
+      return false;
+    }
     return true;
   });
   return paginate(filtered, params.page, params.pageSize);

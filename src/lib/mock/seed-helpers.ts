@@ -38,6 +38,17 @@ export function toDatetime(date: string, time = "09:00:00"): string {
   return `${date}T${time}Z`;
 }
 
+/**
+ * 날짜(YYYY-MM-DD)에 일수를 더한다 — 음수도 허용.
+ * 단계별 날짜(예: 입고접수일 → 창고도착일 → 입고 완료일)의 선후 관계를 보장하는 용도.
+ * RECENT_DATES를 인덱스로 건너뛰는 방식은 배열 끝에서 앞으로 되돌아가 순서가 깨지므로 쓰지 않는다.
+ */
+export function addDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function pad(num: number, width: number): string {
   return String(num).padStart(width, "0");
 }

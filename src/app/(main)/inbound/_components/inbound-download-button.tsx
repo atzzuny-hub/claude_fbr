@@ -1,7 +1,8 @@
 "use client";
 
 import { ExcelDownloadButton } from "@/components/common/excel-download-button";
-import { COUNTRY_LABEL, INBOUND_STATUS_LABEL, type Inbound } from "@/types";
+import type { Inbound } from "@/types";
+import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
 
 /**
  * ExcelDownloadButton의 columns는 accessor 함수를 포함하므로 서버 컴포넌트(page.tsx)에서
@@ -15,18 +16,7 @@ export function InboundDownloadButton({ data }: { data: Inbound[] }) {
   return (
     <ExcelDownloadButton
       data={data}
-      columns={[
-        { header: "참조번호", accessor: (row) => row.referenceNo },
-        { header: "클라이언트", accessor: (row) => row.clientName },
-        { header: "국가", accessor: (row) => COUNTRY_LABEL[row.country] },
-        { header: "WMS LINK", accessor: (row) => row.wmsLinkName },
-        { header: "SKU 코드", accessor: (row) => row.skuCode },
-        { header: "SKU명", accessor: (row) => row.skuName },
-        { header: "수량", accessor: (row) => row.quantity },
-        { header: "상태", accessor: (row) => INBOUND_STATUS_LABEL[row.status] },
-        { header: "입고예정일", accessor: (row) => row.expectedDate },
-        { header: "입고일", accessor: (row) => row.receivedDate ?? "" },
-      ]}
+      columns={INBOUND_CSV_COLUMNS}
       filename="inbound-export"
       label="검색결과 다운로드"
     />

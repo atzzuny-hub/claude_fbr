@@ -18,8 +18,9 @@ import { DemoInboundTable } from "./demo-inbound-table";
 import { DemoInboundDownloadButton } from "./demo-inbound-download-button";
 
 const DATE_FIELD_OPTIONS: SelectOption[] = [
-  { value: "expectedDate", label: "입고예정일" },
-  { value: "receivedDate", label: "입고일" },
+  { value: "receiptDate", label: "입고접수일" },
+  { value: "arrivalDate", label: "창고도착일" },
+  { value: "completedDate", label: "입고 완료일" },
   { value: "createdAt", label: "등록일" },
 ];
 
@@ -100,6 +101,8 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-foreground">SearchPanel</h2>
+        {/* 데모 페이지는 지원하는 필터를 전부 켜 둔다 — 실제 화면은 필요한 옵션만 넘겨
+         * 자기 검색 조건을 구성한다(예: /inbound = WMS LINK·시작일·종료일·기준일자·검색어) */}
         <SearchPanel
           basePath="/dev/components"
           role={session.role}

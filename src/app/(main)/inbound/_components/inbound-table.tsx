@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { StatusStepper } from "@/components/common/status-stepper";
+import { CountryCell } from "@/components/common/country-flag";
+import { DateTimeCell } from "@/components/common/date-time-cell";
 import { exportRowsToCsv } from "@/components/common/excel-download-button";
 import { mergeSearchParams } from "@/lib/utils/search-params";
+import { formatDate } from "@/lib/utils/datetime";
 import { COUNTRY_LABEL, INBOUND_STATUS, INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
+import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
 
 /** StatusBadge tone 매핑 — 예정(info)→대기(warning)→입고(success), StatusBadge 문서의 권장 매핑을 따른다 */
 const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success"> = {
@@ -39,30 +43,40 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
     router.push(qs ? `/inbound?${qs}` : "/inbound");
   }
 
+  // 컬럼 구성은 사용자 확정 8개. 여기서 빠진 클라이언트·SKU·수량은 행 확장(+) 상세로 옮겼다.
   const columns: DataTableColumn<Inbound>[] = [
-    { key: "referenceNo", header: "참조번호", cell: (row) => row.referenceNo },
-    { key: "client", header: "클라이언트", cell: (row) => row.clientName },
-    { key: "sku", header: "SKU", cell: (row) => `${row.skuCode} · ${row.skuName}` },
-    { key: "wmsLink", header: "WMS LINK", cell: (row) => row.wmsLinkName },
-    { key: "country", header: "국가", cell: (row) => COUNTRY_LABEL[row.country] },
+    { key: "orderNo", header: "주문번호", cell: (row) => row.orderNo, cellClassName: "font-mono" },
     {
-      key: "quantity",
-      header: "수량",
-      cell: (row) => row.quantity.toLocaleString(),
-      numeric: true,
+      key: "receiptNo",
+      header: "접수번호",
+      cell: (row) => row.receiptNo,
+      cellClassName: "font-mono",
     },
     {
       key: "status",
-      header: "상태",
+      header: "입고상태",
       cell: (row) => (
         <StatusBadge label={INBOUND_STATUS_LABEL[row.status]} tone={INBOUND_STATUS_TONE[row.status]} />
       ),
     },
-    { key: "expectedDate", header: "입고예정일", cell: (row) => row.expectedDate },
+    { key: "country", header: "국가", cell: (row) => <CountryCell country={row.country} /> },
+    { key: "wmsLink", header: "WMS LINK", cell: (row) => row.wmsLinkName },
+    // 세 날짜는 시각까지 표시한다(DateTimeCell: 날짜 위 · 시각 아래).
+    // 아직 도착/완료 전인 행은 값이 없어 "-"만 나온다.
+    { key: "receiptDate", header: "입고접수일", cell: (row) => <DateTimeCell value={row.receiptDate} /> },
+    { key: "arrivalDate", header: "창고도착일", cell: (row) => <DateTimeCell value={row.arrivalDate} /> },
+    {
+      key: "completedDate",
+      header: "입고 완료일",
+      cell: (row) => <DateTimeCell value={row.completedDate} />,
+    },
   ];
 
   return (
     <DataTable
+      // 목록은 화면 높이 안에 들어가고, 행이 많으면 표 안에서만 스크롤된다(헤더 고정·페이지네이션 상시 노출).
+      // 부모(page.tsx)가 높이 정해진 flex 컬럼이어야 동작한다.
+      fillHeight
       columns={columns}
       data={data}
       getRowId={(row) => row.id}
@@ -78,12 +92,14 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
             currentKey={row.status}
             className="max-w-md"
           />
+          {/* 목록 컬럼에서 뺀 클라이언트·SKU·수량을 여기서 보여준다 */}
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
-            <DetailItem label="SKU 코드" value={row.skuCode} />
-            <DetailItem label="입고예정일" value={row.expectedDate} />
-            <DetailItem label="입고일" value={row.receivedDate ?? "-"} />
-            <DetailItem label="등록일" value={row.createdAt.slice(0, 10)} />
-            <DetailItem label="최근 수정" value={row.updatedAt.slice(0, 10)} />
+            <DetailItem label="클라이언트" value={row.clientName} />
+            <DetailItem label="SKU" value={`${row.skuCode} · ${row.skuName}`} />
+            <DetailItem label="수량" value={row.quantity.toLocaleString()} />
+            <DetailItem label="국가" value={COUNTRY_LABEL[row.country]} />
+            <DetailItem label="등록일" value={formatDate(row.createdAt)} />
+            <DetailItem label="최근 수정" value={formatDate(row.updatedAt)} />
           </dl>
         </div>
       )}
@@ -93,22 +109,7 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
           size="icon-xs"
           aria-label="이 행 다운로드"
           onClick={() =>
-            exportRowsToCsv(
-              [row],
-              [
-                { header: "참조번호", accessor: (r) => r.referenceNo },
-                { header: "클라이언트", accessor: (r) => r.clientName },
-                { header: "국가", accessor: (r) => COUNTRY_LABEL[r.country] },
-                { header: "WMS LINK", accessor: (r) => r.wmsLinkName },
-                { header: "SKU 코드", accessor: (r) => r.skuCode },
-                { header: "SKU명", accessor: (r) => r.skuName },
-                { header: "수량", accessor: (r) => r.quantity },
-                { header: "상태", accessor: (r) => INBOUND_STATUS_LABEL[r.status] },
-                { header: "입고예정일", accessor: (r) => r.expectedDate },
-                { header: "입고일", accessor: (r) => r.receivedDate ?? "" },
-              ],
-              `inbound-${row.referenceNo}`,
-            )
+            exportRowsToCsv([row], INBOUND_CSV_COLUMNS, `inbound-${row.receiptNo}`)
           }
         >
           <Download />

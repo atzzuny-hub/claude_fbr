@@ -130,8 +130,8 @@
   --accent-lavender: var(--brand-300); /* #928FEE */
   --accent-lavender-soft: var(--brand-200); /* #D8D2FC */
 
-  /* 헤더 — 컬러 헤더형(변형 A) 유지, 진한 인디고 + 화이트 텍스트 */
-  --header-bg: #351898;
+  /* 헤더 — 화이트 헤더형(레퍼런스 이미지 반영): 밝은 크롬 + 보라 액센트(활성 메뉴/배지) */
+  --header-bg: #ffffff;
 
   /* 본문 — neutral 기반의 밝은 캔버스 (카드는 --card로 한 단 더 밝게 분리) */
   --bg-page: #f8f9fa;
@@ -204,10 +204,10 @@
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: var(--accent-lavender);
 
-  /* 헤더 — 사이드바보다 한 단 밝은 인디고 (사이드바 > 헤더 > 캔버스 명도 위계) */
+  /* 헤더 — 화이트 서피스 + 본문 텍스트색, 캔버스(#F8F9FA)와는 하단 보더로 구분 */
   --header: var(--header-bg);
-  --header-foreground: #ffffff;
-  --header-border: rgba(255, 255, 255, 0.12);
+  --header-foreground: var(--text-primary);
+  --header-border: var(--border-color);
 }
 
 .dark {
@@ -258,9 +258,10 @@
   --sidebar-border: rgba(255, 255, 255, 0.1);
   --sidebar-ring: var(--accent-lavender);
 
-  --header: var(--brand-950);
-  --header-foreground: #ffffff;
-  --header-border: rgba(255, 255, 255, 0.12);
+  /* 다크에서도 화이트 헤더형의 "본문과 같은 계열 서피스" 관계를 유지 — 카드색 + 은은한 보더 */
+  --header: oklch(0.205 0 0);
+  --header-foreground: oklch(0.985 0 0);
+  --header-border: oklch(1 0 0 / 10%);
 }
 
 @layer base {

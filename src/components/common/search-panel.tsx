@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { buildQueryString } from "@/lib/utils/search-params";
 import type { UserRole } from "@/types";
 
 /** select 전체 옵션 sentinel — "" 값은 Base UI Select item과 충돌해 별도 문자열을 쓴다 */
 const ALL = "ALL";
+
+/**
+ * 검색 컨트롤 공통 높이(40px) — 라벨이 보더에 걸치는 구조라 기본 h-8보다 한 단 크게 둔다.
+ * `data-[size=default]:h-10`을 함께 주는 이유: SelectTrigger가 내부에 가진
+ * `data-[size=default]:h-8`은 속성 선택자를 포함해 특이성이 더 높아 평범한 `h-10`으로는
+ * 덮이지 않는다(twMerge가 같은 modifier끼리 정리해 h-8 쪽만 제거된다).
+ */
+const CONTROL_CLASS = "h-10 data-[size=default]:h-10";
+/** 아이콘 전용 버튼(초기화) — 위 컨트롤 높이와 같은 정사각 */
+const CONTROL_CLASS_SQUARE = "size-10";
+
+/** "전체"(sentinel) 옵션을 앞에 붙인 목록 — Select.Root의 items와 SelectContent가 같은 배열을 쓴다 */
+function withAllOption(options: SelectOption[]): SelectOption[] {
+  return [{ value: ALL, label: "전체" }, ...options];
+}
 
 export interface SelectOption {
   value: string;
@@ -45,8 +61,8 @@ export interface SearchPanelProps {
   basePath: string;
   /** 세션 role — OPERATOR만 클라이언트/국가 select를 렌더링한다(CLIENT는 자동 스코핑) */
   role: UserRole;
-  /** WMS LINK select 옵션 — getWmsLinks() 결과를 페이지(서버)에서 매핑해 전달 */
-  wmsLinkOptions: SelectOption[];
+  /** WMS LINK select 옵션 — getWmsLinks() 결과를 페이지(서버)에서 매핑해 전달. 미지정 시 필드 숨김 */
+  wmsLinkOptions?: SelectOption[];
   /** 기준일자 select 옵션 — 도메인별 날짜 필드(예: 입고=입고예정일/입고일). 비어 있으면 필드 숨김 */
   dateFieldOptions: SelectOption[];
   /** 상태 select 옵션 — *_STATUS_LABEL에서 매핑. 미지정 시 상태 select 자체를 숨긴다(재고현황 등) */
@@ -64,10 +80,17 @@ export interface SearchPanelProps {
 }
 
 /**
- * F012 검색 패널 — 기간(시작일/종료일)·기준일자·WMS LINK·상태·검색어 + 조회/초기화.
+ * F012 검색 패널 — 기간(시작일/종료일)·기준일자·WMS LINK·상태·검색어 + 초기화(아이콘)/조회.
  * 값 형태는 BaseSearchParams(@/types/common)와 1:1 대응한다.
- * 도메인 옵션(dateFieldOptions/statusOptions/clientOptions/countryOptions)은 전부 props 주입 —
- * 이 컴포넌트는 어떤 도메인 상태값도 하드코딩하지 않는다.
+ * 도메인 옵션(wmsLinkOptions/dateFieldOptions/statusOptions/clientOptions/countryOptions)은
+ * 전부 props 주입 — 이 컴포넌트는 어떤 도메인 상태값도 하드코딩하지 않는다.
+ *
+ * 필드 구성은 화면마다 다르다: select 필터는 **옵션을 넘긴 것만 렌더링**하므로, 페이지가 넘기는
+ * props가 곧 그 화면의 검색 조건이다(예: 입고현황 = WMS LINK·시작일·종료일·기준일자·검색어).
+ * 기간·검색어는 현재 모든 목록 화면이 공통으로 쓰므로 항상 노출한다 — 특정 화면에서 빼야 하면
+ * 여기에 플래그 prop을 추가한다.
+ * 렌더링하지 않는 필터는 조회 시 쿼리에도 싣지 않는다(아래 has* 플래그) — URL에 남아 있던 값이
+ * 화면에 보이지 않는 조건으로 계속 따라붙는 것을 막는다.
  */
 export function SearchPanel({
   basePath,
@@ -84,6 +107,8 @@ export function SearchPanel({
 }: SearchPanelProps) {
   const router = useRouter();
   const isOperator = role === "OPERATOR";
+  /** 라벨 ↔ 컨트롤 연결용 id 프리픽스 — 한 화면에 패널이 둘 이상 있어도 id가 겹치지 않는다 */
+  const uid = useId();
 
   const [dateFrom, setDateFrom] = useState(defaultValues?.dateFrom ?? "");
   const [dateTo, setDateTo] = useState(defaultValues?.dateTo ?? "");
@@ -101,6 +126,19 @@ export function SearchPanel({
     return clientOptions.filter((option) => option.wmsLinkId === wmsLinkId);
   }, [clientOptions, wmsLinkId]);
 
+  // 어떤 필터를 렌더링할지 = 페이지가 그 옵션을 넘겼는지. JSX 조건과 쿼리 구성이 같은 값을 본다.
+  const hasWmsFilter = (wmsLinkOptions?.length ?? 0) > 0;
+  const hasDateFieldFilter = dateFieldOptions.length > 0;
+  const hasStatusFilter = (statusOptions?.length ?? 0) > 0;
+  const hasClientFilter = isOperator && clientOptions !== undefined;
+  const hasCountryFilter = isOperator && (countryOptions?.length ?? 0) > 0;
+
+  // 아래 items는 Select.Root에도 넘긴다 — 그래야 트리거가 원시 value("ALL") 대신 라벨("전체")을 렌더한다.
+  const wmsItems = useMemo(() => withAllOption(wmsLinkOptions ?? []), [wmsLinkOptions]);
+  const statusItems = useMemo(() => withAllOption(statusOptions ?? []), [statusOptions]);
+  const clientItems = useMemo(() => withAllOption(scopedClientOptions), [scopedClientOptions]);
+  const countryItems = useMemo(() => withAllOption(countryOptions ?? []), [countryOptions]);
+
   function handleWmsLinkChange(value: string) {
     setWmsLinkId(value);
     const stillValid = value === ALL || (clientOptions ?? []).some(
@@ -113,11 +151,11 @@ export function SearchPanel({
     return {
       dateFrom: dateFrom || undefined,
       dateTo: dateTo || undefined,
-      dateField: dateField || undefined,
-      wmsLinkId: wmsLinkId === ALL ? undefined : wmsLinkId,
-      status: status === ALL ? undefined : status,
-      clientId: isOperator && clientId !== ALL ? clientId : undefined,
-      country: isOperator && country !== ALL ? country : undefined,
+      dateField: hasDateFieldFilter ? dateField || undefined : undefined,
+      wmsLinkId: hasWmsFilter && wmsLinkId !== ALL ? wmsLinkId : undefined,
+      status: hasStatusFilter && status !== ALL ? status : undefined,
+      clientId: hasClientFilter && clientId !== ALL ? clientId : undefined,
+      country: hasCountryFilter && country !== ALL ? country : undefined,
       keyword: keyword.trim() || undefined,
     };
   }
@@ -149,31 +187,58 @@ export function SearchPanel({
         className,
       )}
     >
-      <div className="flex flex-wrap items-end gap-4">
-        <Field label="기간">
-          <div className="flex items-center gap-1.5">
-            <Input
-              type="date"
-              value={dateFrom}
-              onChange={(event) => setDateFrom(event.target.value)}
-              className="w-[8.5rem]"
-              aria-label="시작일"
-            />
-            <span className="text-muted-foreground">~</span>
-            <Input
-              type="date"
-              value={dateTo}
-              onChange={(event) => setDateTo(event.target.value)}
-              className="w-[8.5rem]"
-              aria-label="종료일"
-            />
-          </div>
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-5">
+        {hasWmsFilter && (
+          <Field label="WMS LINK" htmlFor={`${uid}-wms`}>
+            <Select
+              items={wmsItems}
+              value={wmsLinkId}
+              onValueChange={(value) => handleWmsLinkChange(value as string)}
+            >
+              <SelectTrigger id={`${uid}-wms`} className={cn(CONTROL_CLASS, "w-44")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {wmsItems.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+
+        {/* 기간은 시작일/종료일 각각 독립 필드 — 필드마다 라벨이 자기 보더에 걸리는 구조라
+         * 두 인풋을 하나의 "기간" 라벨로 묶지 않는다 */}
+        <Field label="시작일" htmlFor={`${uid}-date-from`}>
+          <Input
+            id={`${uid}-date-from`}
+            type="date"
+            value={dateFrom}
+            onChange={(event) => setDateFrom(event.target.value)}
+            className={cn(CONTROL_CLASS, "w-[8.5rem]")}
+          />
         </Field>
 
-        {dateFieldOptions.length > 0 && (
-          <Field label="기준일자">
-            <Select value={dateField} onValueChange={(value) => setDateField(value as string)}>
-              <SelectTrigger className="w-36">
+        <Field label="종료일" htmlFor={`${uid}-date-to`}>
+          <Input
+            id={`${uid}-date-to`}
+            type="date"
+            value={dateTo}
+            onChange={(event) => setDateTo(event.target.value)}
+            className={cn(CONTROL_CLASS, "w-[8.5rem]")}
+          />
+        </Field>
+
+        {hasDateFieldFilter && (
+          <Field label="기준일자" htmlFor={`${uid}-date-field`}>
+            <Select
+              items={dateFieldOptions}
+              value={dateField}
+              onValueChange={(value) => setDateField(value as string)}
+            >
+              <SelectTrigger id={`${uid}-date-field`} className={cn(CONTROL_CLASS, "w-36")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -187,31 +252,18 @@ export function SearchPanel({
           </Field>
         )}
 
-        <Field label="WMS LINK">
-          <Select value={wmsLinkId} onValueChange={(value) => handleWmsLinkChange(value as string)}>
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>전체</SelectItem>
-              {wmsLinkOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-
-        {statusOptions && statusOptions.length > 0 && (
-          <Field label="상태">
-            <Select value={status} onValueChange={(value) => setStatus(value as string)}>
-              <SelectTrigger className="w-36">
+        {hasStatusFilter && (
+          <Field label="상태" htmlFor={`${uid}-status`}>
+            <Select
+              items={statusItems}
+              value={status}
+              onValueChange={(value) => setStatus(value as string)}
+            >
+              <SelectTrigger id={`${uid}-status`} className={cn(CONTROL_CLASS, "w-36")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>전체</SelectItem>
-                {statusOptions.map((option) => (
+                {statusItems.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -222,15 +274,18 @@ export function SearchPanel({
         )}
 
         {/* 클라이언트 select는 OPERATOR에게만 렌더링 — CLIENT는 세션으로 자동 스코핑되어 이 UI 자체가 없다 */}
-        {isOperator && clientOptions && (
-          <Field label="클라이언트">
-            <Select value={clientId} onValueChange={(value) => setClientId(value as string)}>
-              <SelectTrigger className="w-44">
+        {hasClientFilter && (
+          <Field label="클라이언트" htmlFor={`${uid}-client`}>
+            <Select
+              items={clientItems}
+              value={clientId}
+              onValueChange={(value) => setClientId(value as string)}
+            >
+              <SelectTrigger id={`${uid}-client`} className={cn(CONTROL_CLASS, "w-44")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>전체</SelectItem>
-                {scopedClientOptions.map((option) => (
+                {clientItems.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -240,15 +295,18 @@ export function SearchPanel({
           </Field>
         )}
 
-        {isOperator && countryOptions && countryOptions.length > 0 && (
-          <Field label="국가">
-            <Select value={country} onValueChange={(value) => setCountry(value as string)}>
-              <SelectTrigger className="w-32">
+        {hasCountryFilter && (
+          <Field label="국가" htmlFor={`${uid}-country`}>
+            <Select
+              items={countryItems}
+              value={country}
+              onValueChange={(value) => setCountry(value as string)}
+            >
+              <SelectTrigger id={`${uid}-country`} className={cn(CONTROL_CLASS, "w-32")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>전체</SelectItem>
-                {countryOptions.map((option) => (
+                {countryItems.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -258,30 +316,43 @@ export function SearchPanel({
           </Field>
         )}
 
-        <Field label="검색어" className="min-w-48 flex-1">
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-tertiary-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              type="text"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-              placeholder={keywordPlaceholder ?? "검색어를 입력하세요"}
-              className="pl-8"
-            />
-          </div>
+        <Field label="검색어" htmlFor={`${uid}-keyword`} className="min-w-56 flex-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-tertiary-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            id={`${uid}-keyword`}
+            type="text"
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            placeholder={keywordPlaceholder ?? "검색어를 입력하세요"}
+            className={cn(CONTROL_CLASS, "pl-9")}
+          />
         </Field>
 
-        <div className="flex items-center gap-2">
-          <Button onClick={handleSearch}>
+        {/* ml-auto — 필드가 여러 줄로 감길 때 버튼 묶음은 항상 줄 오른쪽 끝에 붙는다 */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* 초기화는 아이콘 전용(레이블 없음) — 텍스트가 없으므로 aria-label + 툴팁으로 이름을 준다 */}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="초기화"
+                  onClick={handleReset}
+                  className={CONTROL_CLASS_SQUARE}
+                />
+              }
+            >
+              <RotateCcw aria-hidden="true" />
+            </TooltipTrigger>
+            <TooltipContent>초기화</TooltipContent>
+          </Tooltip>
+          <Button onClick={handleSearch} className={CONTROL_CLASS}>
             <Search data-icon="inline-start" />
             조회
-          </Button>
-          <Button variant="outline" onClick={handleReset}>
-            <RotateCcw data-icon="inline-start" />
-            초기화
           </Button>
         </div>
       </div>
@@ -289,18 +360,31 @@ export function SearchPanel({
   );
 }
 
+/**
+ * 검색 필드 한 칸 — 라벨을 컨트롤 보더 위에 걸쳐 놓는다(노치 라벨).
+ * 라벨 배경 `bg-card`는 패널 서피스와 같은 색이어야 보더가 라벨 뒤에서 끊겨 보인다 —
+ * 패널 배경을 바꾸면 이 값도 같이 바꿔야 한다.
+ * htmlFor로 컨트롤 id와 묶어 라벨 클릭 시 포커스가 이동하고 스크린리더에도 이름이 전달된다.
+ */
 function Field({
   label,
+  htmlFor,
   children,
   className,
 }: {
   label: string;
+  htmlFor: string;
   children: React.ReactNode;
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+    <div className={cn("relative min-w-0", className)}>
+      <Label
+        htmlFor={htmlFor}
+        className="absolute top-0 left-2.5 z-10 -translate-y-1/2 bg-card px-1 text-[11px] leading-none font-medium text-muted-foreground"
+      >
+        {label}
+      </Label>
       {children}
     </div>
   );

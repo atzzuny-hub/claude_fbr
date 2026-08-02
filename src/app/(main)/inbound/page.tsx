@@ -1,36 +1,19 @@
 // PRD: F001(입고현황 조회), F012(목록 검색·엑셀 다운로드), F013(역할별 데이터 스코핑)
 // — 입고현황 페이지 (접근 권한: 공통·데이터 스코핑, 로그인 후 기본 진입 화면)
-import { getClients, getInbounds, getSession, getWmsLinks } from "@/lib/data";
-import {
-  COUNTRY,
-  COUNTRY_LABEL,
-  INBOUND_STATUS,
-  INBOUND_STATUS_LABEL,
-  inboundSearchParamsSchema,
-  type InboundSearchParams,
-} from "@/types";
+import { getInbounds, getSession, getWmsLinks } from "@/lib/data";
+import { inboundSearchParamsSchema, type InboundSearchParams } from "@/types";
 import { flattenSearchParams } from "@/lib/utils/search-params";
 import { PageHeader } from "@/components/common/page-header";
-import { SearchPanel, type ClientFilterOption, type SelectOption } from "@/components/common/search-panel";
+import { SearchPanel, type SelectOption } from "@/components/common/search-panel";
 import { InboundTable } from "./_components/inbound-table";
 import { InboundDownloadButton } from "./_components/inbound-download-button";
 
+// 기준일자 후보 = 목록의 날짜 컬럼 3개와 동일 (lib/data/inbounds.ts의 resolveDate 허용값과 1:1)
 const DATE_FIELD_OPTIONS: SelectOption[] = [
-  { value: "expectedDate", label: "입고예정일" },
-  { value: "receivedDate", label: "입고일" },
-  { value: "createdAt", label: "등록일" },
+  { value: "receiptDate", label: "입고접수일" },
+  { value: "arrivalDate", label: "창고도착일" },
+  { value: "completedDate", label: "입고 완료일" },
 ];
-
-const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS.map((status) => ({
-  value: status,
-  label: INBOUND_STATUS_LABEL[status],
-}));
-
-// (운영자 전용) 국가 필터 — F013: 운영자는 클라이언트·국가·WMS LINK 필터 제공
-const COUNTRY_OPTIONS: SelectOption[] = COUNTRY.map((country) => ({
-  value: country,
-  label: COUNTRY_LABEL[country],
-}));
 
 // F012 "검색결과 전체 다운로드"용 상한 — 현재 목데이터 규모(64건) 대비 충분히 큰 값.
 const EXPORT_MAX_ROWS = 1000;
@@ -60,43 +43,40 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
   });
   const params: InboundSearchParams = parsed.success ? parsed.data : { page, pageSize };
 
-  const [session, inbounds, exportResult, wmsLinksResult, clientsResult] = await Promise.all([
+  const [session, inbounds, exportResult, wmsLinksResult] = await Promise.all([
     getSession(),
     getInbounds(params),
     getInbounds({ ...params, page: 1, pageSize: EXPORT_MAX_ROWS }),
     getWmsLinks({ pageSize: 100 }),
-    getClients({ pageSize: 200 }),
   ]);
 
   const wmsLinkOptions: SelectOption[] = wmsLinksResult.items.map((link) => ({
     value: link.id,
     label: link.name,
   }));
-  // OPERATOR에게만 SearchPanel이 실제로 렌더링하는 옵션(CLIENT는 세션 clientId로 자동 스코핑).
-  const clientOptions: ClientFilterOption[] = clientsResult.items.map((client) => ({
-    value: client.id,
-    label: client.name,
-    wmsLinkId: client.wmsLinkId,
-  }));
 
   return (
-    <div className="flex flex-col gap-4">
+    // lg 이상: 셸이 준 높이를 그대로 채워 목록이 화면 안에 들어오고, 표 안에서만 스크롤된다.
+    // lg 미만: 검색 조건이 여러 줄로 감겨 표에 남는 높이가 얇아지므로 페이지 전체 스크롤로 둔다.
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <PageHeader
         title="입고현황"
         description="입고 목록을 조회하고 입고상태(예정 → 대기 → 입고) 진행을 추적합니다."
         actions={<InboundDownloadButton data={exportResult.items} />}
+        className="shrink-0"
       />
 
+      {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 검색어.
+       * SearchPanel은 옵션을 넘긴 필터만 렌더링하므로, 상태·클라이언트·국가 옵션은 넘기지 않는다
+       * (검색 조건은 화면마다 다르다 — 사용자 확정). 서버 스코핑은 그대로 lib/data가 담당한다. */}
       <SearchPanel
         basePath="/inbound"
         role={session.role}
         wmsLinkOptions={wmsLinkOptions}
         dateFieldOptions={DATE_FIELD_OPTIONS}
-        statusOptions={STATUS_OPTIONS}
-        clientOptions={clientOptions}
-        countryOptions={COUNTRY_OPTIONS}
-        keywordPlaceholder="참조번호 · SKU명 · 클라이언트명 검색"
+        keywordPlaceholder="주문번호 · 접수번호 · SKU 검색"
         defaultValues={params}
+        className="shrink-0"
       />
 
       <InboundTable
