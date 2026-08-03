@@ -38,6 +38,8 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
     clientId: flat.clientId || undefined,
     country: flat.country || undefined,
     keyword: flat.keyword || undefined,
+    sort: flat.sort || undefined,
+    order: flat.order || undefined,
     page,
     pageSize,
   });

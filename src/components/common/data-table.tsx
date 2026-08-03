@@ -1,7 +1,16 @@
 "use client";
 
-import { Fragment, useLayoutEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  ChevronUp,
+  Minus,
+  Plus,
+  RotateCcw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,6 +40,8 @@ export interface DataTableColumn<T> {
   headerClassName?: string;
   cellClassName?: string;
   width?: string;
+  /** 이 컬럼을 정렬 대상에서 제외한다(기본: onSortChange가 있으면 모든 컬럼 정렬 가능). */
+  sortable?: boolean;
 }
 
 export interface DataTableProps<T> {
@@ -45,6 +56,29 @@ export interface DataTableProps<T> {
   pageSizeOptions?: number[];
   loading?: boolean;
   emptyMessage?: string;
+  /**
+   * 헤더 우측 경계를 드래그해 각 컬럼 너비를 조절할 수 있게 한다.
+   * 켜면 표는 첫 렌더의 실제 컬럼 너비를 측정한 뒤 `table-layout: fixed`로 고정되고,
+   * 이후 드래그로 바꾼 px 너비를 유지한다(넘치면 표 컨테이너가 가로 스크롤).
+   */
+  resizableColumns?: boolean;
+  /**
+   * 지정하면(그리고 resizableColumns가 켜져 있으면) 사용자가 드래그로 바꾼 컬럼 너비를
+   * 이 키로 localStorage에 저장해 다음 방문에도 복원한다. 표마다 고유한 값을 준다(예: "inbound").
+   * 저장 대상은 UI 환경설정뿐 — 인증/세션 값은 저장하지 않는다.
+   */
+  persistKey?: string;
+  /** 현재 정렬 중인 컬럼 key (없으면 정렬 없음). */
+  sort?: string;
+  /** 현재 정렬 방향. */
+  order?: "asc" | "desc";
+  /**
+   * 정렬 가능한 헤더를 클릭했을 때 호출된다. 지정하면 각 컬럼 헤더가 클릭 가능해지고
+   * (sortable: false 제외), 클릭할 때마다 오름 → 내림 → 해제 3단계로 순환한다.
+   * order가 null이면 해제(정렬 없음) — 상위에서 URL의 sort/order를 제거하면 된다.
+   * URL 쿼리 기반 정렬(페이지네이션과 동일 패턴)을 위해 상위에서 라우팅을 처리한다.
+   */
+  onSortChange?: (key: string, order: "asc" | "desc" | null) => void;
   /** 행 확장(+) 슬롯 — 지정 시 각 행 앞에 확장 토글이 생기고 펼치면 이 내용이 아래 행으로 붙는다 */
   renderDetail?: (row: T) => React.ReactNode;
   /** 행 단위 액션 슬롯 — 예: 행별 엑셀 다운로드 아이콘 */
@@ -61,6 +95,50 @@ export interface DataTableProps<T> {
 }
 
 const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+/** 드래그로 줄일 수 있는 컬럼 최소 너비(px) */
+const MIN_COLUMN_WIDTH = 48;
+
+/** persistKey를 localStorage 키로 감싸는 네임스페이스 접두어 */
+const WIDTHS_STORAGE_PREFIX = "reve:datatable:widths:";
+
+/**
+ * 저장된 컬럼 너비를 읽어 검증한다(숫자만·최소너비 클램프). 값이 없거나 손상되면 null.
+ * 브라우저에서만 호출되므로(useLayoutEffect) window 접근은 안전하지만, 접근 실패(사파리 프라이빗 등)도 감싼다.
+ */
+function readStoredWidths(persistKey: string): Record<string, number> | null {
+  try {
+    const raw = window.localStorage.getItem(WIDTHS_STORAGE_PREFIX + persistKey);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const result: Record<string, number> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === "number" && Number.isFinite(value)) {
+        result[key] = Math.max(MIN_COLUMN_WIDTH, Math.round(value));
+      }
+    }
+    return Object.keys(result).length > 0 ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredWidths(persistKey: string, widths: Record<string, number>) {
+  try {
+    window.localStorage.setItem(WIDTHS_STORAGE_PREFIX + persistKey, JSON.stringify(widths));
+  } catch {
+    // 저장 실패(용량 초과·프라이빗 모드 등)는 무시한다 — 너비 유지는 부가 기능일 뿐이다.
+  }
+}
+
+function clearStoredWidths(persistKey: string) {
+  try {
+    window.localStorage.removeItem(WIDTHS_STORAGE_PREFIX + persistKey);
+  } catch {
+    // 무시 — 아래 재측정으로 화면은 기본 너비로 돌아간다.
+  }
+}
 
 /*
  * 리브온 솔루션 디자인 템플릿(§2·§4.2) — "행 = 카드": 보더 격자 테이블 대신 여백·라운드·
@@ -89,6 +167,11 @@ export function DataTable<T>({
   pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   loading = false,
   emptyMessage = "조회된 데이터가 없습니다.",
+  resizableColumns = false,
+  persistKey,
+  sort,
+  order,
+  onSortChange,
   renderDetail,
   rowActions,
   fillHeight = false,
@@ -148,6 +231,126 @@ export function DataTable<T>({
   const hasLeadingCell = hasExpand || hasActions;
   const colSpan = columns.length + (hasLeadingCell ? 1 : 0);
 
+  /*
+   * 컬럼 너비 드래그 조절.
+   * 첫 렌더는 평소처럼 auto 레이아웃으로 그린 뒤, 그때 브라우저가 정한 각 헤더 실제 너비를
+   * 측정해 px로 고정한다(초기 모양은 지금과 동일). 이후에는 그 px를 colgroup + table-layout:fixed로
+   * 강제하므로, 드래그로 컬럼을 내용보다 좁게도 줄일 수 있다(auto 레이아웃은 내용폭 밑으로 못 줄인다).
+   */
+  const headRefs = useRef<Map<string, HTMLTableCellElement>>(new Map());
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [resizingKey, setResizingKey] = useState<string | null>(null);
+  // "너비 초기화"가 측정 이펙트를 다시 돌리도록 강제하는 카운터(값 자체엔 의미 없음).
+  const [resetNonce, setResetNonce] = useState(0);
+  // 드래그 시작 시점의 기준값(어느 컬럼·시작 X·시작 폭) — 리렌더와 무관하게 유지한다.
+  const dragRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
+  // 최신 columnWidths를 미러링 — 드래그 종료 시점(onUp)에 저장할 값을 읽는 데 쓴다.
+  // 렌더 중엔 건드리지 않고(React 규칙), startResize/onMove(이벤트 핸들러)에서만 갱신한다.
+  const widthsRef = useRef(columnWidths);
+  // 컬럼 구성이 바뀌면(다른 값 세트) 다시 측정하도록 키 시그니처를 의존성에 둔다.
+  const columnKeys = columns.map((column) => column.key).join("|");
+
+  useLayoutEffect(() => {
+    if (!resizableColumns || columns.length === 0) return;
+    let next: Record<string, number> | null = null;
+    // 1) 저장된 사용자 지정 너비가 있으면(모든 컬럼을 덮을 때만) 그대로 복원한다 — 측정보다 우선.
+    if (persistKey) {
+      const stored = readStoredWidths(persistKey);
+      if (stored && columns.every((column) => stored[column.key] != null)) next = stored;
+    }
+    // 2) 없으면 첫 렌더의 실제 너비를 측정해 고정 폭으로 전환한다.
+    if (!next) {
+      const measured: Record<string, number> = {};
+      for (const column of columns) {
+        const el = headRefs.current.get(column.key);
+        if (el) measured[column.key] = Math.round(el.getBoundingClientRect().width);
+      }
+      // 모든 컬럼을 측정했을 때만 고정 폭으로 전환한다(부분 측정 상태로 넘어가면 레이아웃이 튄다).
+      if (columns.every((column) => measured[column.key])) next = measured;
+    }
+    // auto→fixed 전환에 필요한 1회 setState라, 대상 값이 정해질 때만 실행되고 루프가 아니다.
+    if (next) {
+      widthsRef.current = next;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setColumnWidths(next);
+    }
+    // columns는 매 렌더 새 배열이라 그대로 넣으면 매번 재실행된다 — 키 시그니처로 대체한다.
+    // resetNonce는 "너비 초기화" 시 저장값 삭제 후 자연 너비를 다시 측정하려고 넣는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resizableColumns, columnKeys, persistKey, resetNonce]);
+
+  /*
+   * 드래그 중에만 전역 pointer 리스너와 커서/선택 잠금을 건다. 핸들러에서 직접 body를 만지면
+   * (React Compiler의 불변성 규칙 위반) 대신 resizingKey를 스위치로 삼아 이 effect에서 처리한다.
+   */
+  useEffect(() => {
+    if (!resizingKey) return;
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(moveEvent: PointerEvent) {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const next = Math.max(MIN_COLUMN_WIDTH, Math.round(drag.startWidth + (moveEvent.clientX - drag.startX)));
+      // onUp에서 저장할 최종값을 위해 미러 ref도 함께 갱신한다(이벤트 핸들러 → ref 쓰기 허용).
+      widthsRef.current = { ...widthsRef.current, [drag.key]: next };
+      setColumnWidths((prev) => ({ ...prev, [drag.key]: next }));
+    }
+    function onUp() {
+      dragRef.current = null;
+      setResizingKey(null);
+      // 드래그가 끝난 시점의 최종 너비만 저장한다(onMove마다 쓰면 낭비). 다음 방문 때 복원된다.
+      if (persistKey) writeStoredWidths(persistKey, widthsRef.current);
+    }
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [resizingKey, persistKey]);
+
+  const registerHead = (key: string) => (el: HTMLTableCellElement | null) => {
+    if (el) headRefs.current.set(key, el);
+    else headRefs.current.delete(key);
+  };
+
+  function startResize(event: React.PointerEvent, key: string) {
+    event.preventDefault();
+    event.stopPropagation();
+    dragRef.current = {
+      key,
+      startX: event.clientX,
+      startWidth:
+        columnWidths[key] ?? headRefs.current.get(key)?.getBoundingClientRect().width ?? MIN_COLUMN_WIDTH,
+    };
+    setResizingKey(key);
+  }
+
+  function resetColumnWidths() {
+    if (persistKey) clearStoredWidths(persistKey);
+    widthsRef.current = {};
+    // 폭을 비우면 auto 레이아웃으로 돌아가고, resetNonce를 올리면 측정 이펙트가 다시 돌아
+    // 지금 내용 기준의 자연 너비를 새로 재서 고정한다(= 기본값으로 복귀).
+    setColumnWidths({});
+    setResetNonce((nonce) => nonce + 1);
+  }
+
+  // 행 맨 앞 조작 칸 폭(px) — leadingCellWidth의 Tailwind 클래스(w-14/w-24)와 맞춘다.
+  const leadingWidthPx = hasLeadingCell ? (hasExpand && hasActions ? 96 : 56) : 0;
+  // 모든 컬럼 폭이 측정된 뒤에만 고정 레이아웃으로 그린다(그 전엔 auto로 첫 측정).
+  const resizeReady =
+    resizableColumns && columns.length > 0 && columns.every((column) => columnWidths[column.key] != null);
+  const totalWidth = resizeReady
+    ? leadingWidthPx + columns.reduce((sum, column) => sum + (columnWidths[column.key] ?? 0), 0)
+    : 0;
+  // 빈/로딩/상세 행이 표 전체 폭을 덮도록, 트레일링 스페이서 컬럼까지 포함한 열 수.
+  const spannedColSpan = colSpan + (resizeReady ? 1 : 0);
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const rangeStart = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
@@ -167,6 +370,20 @@ export function DataTable<T>({
 
   return (
     <div className={cn("flex flex-col gap-3", fillHeight && "lg:min-h-0 lg:flex-1", className)}>
+      {/* 표 상단 툴바 — 검색영역과 표 사이. 지금은 "열 너비 초기화"만 둔다(resizable일 때). */}
+      {resizableColumns && (
+        <div className="flex shrink-0 items-center justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetColumnWidths}
+            className="h-8 gap-1.5 px-2 text-xs text-tertiary-foreground"
+          >
+            <RotateCcw className="size-3.5" />열 너비 초기화
+          </Button>
+        </div>
+      )}
       {/* 스크롤 컨테이너는 Table 내부의 table-container 하나뿐이다 — sticky 헤더가 이 컨테이너를
        * 기준으로 고정되므로, 높이 제약도 바깥에 div를 더 두지 않고 여기에 직접 건다 */}
       <Table
@@ -185,6 +402,11 @@ export function DataTable<T>({
               }
             : undefined
         }
+        // resizeReady면 table-layout:fixed로 전환하되 기본 폭은 100%로 둔다 — 컬럼을 줄여
+        // 합이 컨테이너보다 작아져도 표가 컨테이너를 꽉 채우고, 남는 폭은 맨 끝 스페이서 컬럼이
+        // 흡수한다(각 컬럼은 드래그한 px 그대로 유지 → 1:1 드래그감). min-width로 컬럼 합을 보장해
+        // 컬럼을 넓혀 합이 컨테이너를 넘으면 그때부터 가로 스크롤된다.
+        style={resizeReady ? { width: "100%", minWidth: `${totalWidth}px`, tableLayout: "fixed" } : undefined}
         className={cn(
           "border-separate border-spacing-x-0 border-spacing-y-2",
           // border-spacing은 헤더 행 위에도 8px을 남긴다 — 그대로 두면 sticky(top-0)가 걸리는
@@ -194,36 +416,97 @@ export function DataTable<T>({
           fillHeight && "lg:-mt-2 lg:[&_tbody_button]:scroll-mt-12",
         )}
       >
+        {resizeReady && (
+          <colgroup>
+            {hasLeadingCell && <col style={{ width: `${leadingWidthPx}px` }} />}
+            {columns.map((column) => (
+              <col key={column.key} style={{ width: `${columnWidths[column.key]}px` }} />
+            ))}
+            {/* 폭 미지정(auto) 스페이서 — 표 폭(100%)에서 컬럼 합을 뺀 나머지를 흡수한다.
+               합이 컨테이너를 넘으면(min-width) 나머지가 0이라 이 컬럼은 폭 0으로 접힌다. */}
+            <col />
+          </colgroup>
+        )}
         <TableHeader>
           <TableRow className="border-none hover:bg-transparent">
             {hasLeadingCell && (
               <TableHead className={cn(leadingCellWidth(hasExpand, hasActions), "pl-5", stickyHeadClass)} />
             )}
-            {columns.map((column, index) => (
-              <TableHead
-                key={column.key}
-                style={column.width ? { width: column.width } : undefined}
-                className={cn(
-                  alignClass(column.align, column.numeric),
-                  "h-9 text-[11px] font-medium tracking-wide text-tertiary-foreground",
-                  !hasLeadingCell && index === 0 && "pl-5",
-                  index === columns.length - 1 && "pr-5",
-                  stickyHeadClass,
-                  column.headerClassName,
-                )}
-              >
-                {column.header}
-              </TableHead>
-            ))}
+            {columns.map((column, index) => {
+              const sortable = Boolean(onSortChange) && column.sortable !== false;
+              const isSorted = sortable && sort === column.key;
+              // 클릭 시 다음 상태: 정렬 안 됨 → 오름 → 내림 → 해제(null) → (다시 오름).
+              const nextOrder: "asc" | "desc" | null = !isSorted
+                ? "asc"
+                : order === "asc"
+                  ? "desc"
+                  : null;
+              const alignsRight = (column.align ?? (column.numeric ? "right" : "left")) === "right";
+              return (
+                <TableHead
+                  key={column.key}
+                  ref={resizableColumns ? registerHead(column.key) : undefined}
+                  style={column.width ? { width: column.width } : undefined}
+                  aria-sort={isSorted ? (order === "desc" ? "descending" : "ascending") : undefined}
+                  className={cn(
+                    alignClass(column.align, column.numeric),
+                    "h-9 text-[11px] font-medium tracking-wide text-tertiary-foreground",
+                    !hasLeadingCell && index === 0 && "pl-5",
+                    index === columns.length - 1 && "pr-5",
+                    // 드래그 핸들의 위치 기준(relative). lg에서는 뒤의 lg:sticky가 위치를 잡으므로
+                    // 소스 순서상 sticky가 이겨 헤더 고정 동작은 그대로다.
+                    resizableColumns && "group/head relative overflow-hidden",
+                    stickyHeadClass,
+                    column.headerClassName,
+                  )}
+                >
+                  {sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => onSortChange?.(column.key, nextOrder)}
+                      className={cn(
+                        "group/sort -mx-1 inline-flex max-w-full items-center gap-1 rounded px-1 py-0.5 align-middle transition-colors hover:text-foreground",
+                        isSorted && "text-foreground",
+                        // 우측 정렬 컬럼은 아이콘이 라벨 왼쪽에 오도록 뒤집는다.
+                        alignsRight && "flex-row-reverse",
+                      )}
+                    >
+                      <span className="truncate">{column.header}</span>
+                      <SortIndicator active={isSorted} order={order} />
+                    </button>
+                  ) : (
+                    column.header
+                  )}
+                  {resizableColumns && (
+                    <span
+                      aria-hidden
+                      onPointerDown={(event) => startResize(event, column.key)}
+                      onClick={(event) => event.stopPropagation()}
+                      className="group/resize absolute inset-y-0 right-0 z-30 flex w-2.5 cursor-col-resize touch-none items-stretch justify-end select-none"
+                    >
+                      <span
+                        className={cn(
+                          "my-2 w-px rounded-full bg-transparent transition-colors",
+                          "group-hover/head:bg-border group-hover/resize:bg-primary!",
+                          resizingKey === column.key && "bg-primary!",
+                        )}
+                      />
+                    </span>
+                  )}
+                </TableHead>
+              );
+            })}
+            {/* 트레일링 스페이서 헤더 — 남는 폭을 차지하는 빈 칸(고정 헤더 배경만 이어 준다) */}
+            {resizeReady && <TableHead aria-hidden className={stickyHeadClass} />}
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading ? (
-            <LoadingRows colSpan={colSpan} rowCount={Math.min(pageSize, 8)} />
+            <LoadingRows colSpan={spannedColSpan} rowCount={Math.min(pageSize, 8)} />
           ) : data.length === 0 ? (
             <TableRow className="border-none hover:bg-transparent">
               <TableCell
-                colSpan={colSpan}
+                colSpan={spannedColSpan}
                 className={cn(
                   "h-32 rounded-xl bg-card text-center text-sm text-muted-foreground",
                   ROW_SHADOW,
@@ -268,9 +551,17 @@ export function DataTable<T>({
                   <TableCell
                     key={column.key}
                     className={cn(
-                      rowCellClass(!hasLeadingCell && index === 0, index === columns.length - 1, expanded),
+                      // 스페이서가 있으면(resizeReady) 마지막 데이터 칸은 끝 칸이 아니다 —
+                      // 우측 라운드/여백은 스페이서가 맡으므로 여기선 주지 않는다.
+                      rowCellClass(
+                        !hasLeadingCell && index === 0,
+                        !resizeReady && index === columns.length - 1,
+                        expanded,
+                      ),
                       alignClass(column.align, column.numeric),
                       column.numeric && "font-mono tabular-nums",
+                      // 고정 폭 모드: 컬럼을 내용보다 좁게 줄였을 때 옆 칸으로 새지 않도록 잘라낸다.
+                      resizableColumns && "overflow-hidden text-ellipsis",
                       column.cellClassName,
                     )}
                   >
@@ -278,6 +569,14 @@ export function DataTable<T>({
                   </TableCell>,
                 );
               });
+
+              // 트레일링 스페이서 셀 — 남는 폭을 카드 배경으로 채워 행이 오른쪽 끝까지 이어지게 한다.
+              // 우측 라운드/여백을 이 칸이 맡는다. 스크롤이 필요할 만큼 넓히면 폭 0으로 접힌다.
+              if (resizeReady) {
+                cells.push(
+                  <TableCell key="__row-spacer" aria-hidden className={rowCellClass(false, true, expanded)} />,
+                );
+              }
 
               return (
                 <Fragment key={id}>
@@ -293,7 +592,7 @@ export function DataTable<T>({
                     <TableRow className="border-none hover:bg-transparent">
                       <TableCell
                         data-detail-row={id}
-                        colSpan={colSpan}
+                        colSpan={spannedColSpan}
                         className="rounded-xl bg-row-alt p-5"
                       >
                         {renderDetail?.(row)}
@@ -352,6 +651,23 @@ export function DataTable<T>({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * 정렬 상태 아이콘 — 정렬 중인 컬럼엔 방향(▲/▼)을, 그 외 정렬 가능한 컬럼엔
+ * 호버 시에만 흐릿한 양방향 아이콘을 보여 클릭 가능함을 알린다.
+ */
+function SortIndicator({ active, order }: { active: boolean; order?: "asc" | "desc" }) {
+  if (active) {
+    return order === "desc" ? (
+      <ChevronDown className="size-3.5 shrink-0" />
+    ) : (
+      <ChevronUp className="size-3.5 shrink-0" />
+    );
+  }
+  return (
+    <ChevronsUpDown className="size-3.5 shrink-0 text-muted-foreground/60 opacity-0 transition-opacity group-hover/sort:opacity-100" />
   );
 }
 

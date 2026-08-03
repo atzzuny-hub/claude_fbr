@@ -40,6 +40,10 @@ export const baseSearchParamsSchema = z.object({
   dateField: z.string().optional(), // 기준일자 (필터 대상 날짜 필드명, 도메인별로 다름)
   wmsLinkId: z.string().optional(), // WMS LINK 필터
   keyword: z.string().optional(), // 검색어
+  // 정렬: sort = 컬럼 키(도메인별 정렬 접근자가 해석, 모르는 키는 무시), order = 방향.
+  // order에 잘못된 값이 와도 전체 파싱이 실패하지 않도록 catch로 흘려보낸다(정렬만 해제됨).
+  sort: z.string().optional(),
+  order: z.enum(["asc", "desc"]).optional().catch(undefined),
   page: z.number().int().min(1).optional(),
   pageSize: z.number().int().min(1).optional(),
 });

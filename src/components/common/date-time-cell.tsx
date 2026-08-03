@@ -20,9 +20,10 @@ export function DateTimeCell({ value, fallback = "-", className }: DateTimeCellP
   }
   const time = formatTime(value);
   return (
-    <span className={cn("flex flex-col leading-tight tabular-nums", className)}>
-      <span>{formatDate(value)}</span>
-      {time && <span className="text-xs text-muted-foreground">{time}</span>}
+    <span className={cn("flex min-w-0 flex-col leading-tight tabular-nums", className)}>
+      {/* 열 폭이 좁아지면 날짜·시각 각 줄을 …으로 줄인다(고정 폭 표에서만 실제로 잘린다) */}
+      <span className="truncate">{formatDate(value)}</span>
+      {time && <span className="truncate text-xs text-muted-foreground">{time}</span>}
     </span>
   );
 }

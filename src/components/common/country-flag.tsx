@@ -81,9 +81,11 @@ export function CountryFlag({ country, className }: CountryFlagProps) {
 /** 국기 + 국가명 한 쌍 — 목록 셀에서 쓰는 기본 표기 */
 export function CountryCell({ country, className }: CountryFlagProps) {
   return (
-    <span className={cn("flex items-center gap-1.5 whitespace-nowrap", className)}>
+    <span className={cn("flex items-center gap-1.5", className)}>
       <CountryFlag country={country} />
-      {COUNTRY_LABEL[country]}
+      {/* 국기는 그대로 두고(shrink-0), 열 폭이 좁아지면 국가명만 …으로 줄인다.
+         truncate의 overflow-hidden이 flex 자식 최소너비를 0으로 만들어 줄어들 수 있다. */}
+      <span className="truncate">{COUNTRY_LABEL[country]}</span>
     </span>
   );
 }

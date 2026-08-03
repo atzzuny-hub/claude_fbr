@@ -43,6 +43,10 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
     router.push(qs ? `/inbound?${qs}` : "/inbound");
   }
 
+  // 현재 정렬 상태 — URL 쿼리에서 읽는다(order는 asc/desc만 인정).
+  const sort = currentQuery.sort || undefined;
+  const order = currentQuery.order === "desc" ? "desc" : currentQuery.order === "asc" ? "asc" : undefined;
+
   // 컬럼 구성은 사용자 확정 8개. 여기서 빠진 클라이언트·SKU·수량은 행 확장(+) 상세로 옮겼다.
   const columns: DataTableColumn<Inbound>[] = [
     { key: "orderNo", header: "주문번호", cell: (row) => row.orderNo, cellClassName: "font-mono" },
@@ -77,6 +81,9 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
       // 목록은 화면 높이 안에 들어가고, 행이 많으면 표 안에서만 스크롤된다(헤더 고정·페이지네이션 상시 노출).
       // 부모(page.tsx)가 높이 정해진 flex 컬럼이어야 동작한다.
       fillHeight
+      // 헤더 우측 경계를 드래그해 컬럼 너비 조절 가능 — 조절값은 persistKey로 브라우저에 저장·복원
+      resizableColumns
+      persistKey="inbound"
       columns={columns}
       data={data}
       getRowId={(row) => row.id}
@@ -85,6 +92,17 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
       pageSize={pageSize}
       onPageChange={(nextPage) => navigate({ page: nextPage })}
       onPageSizeChange={(nextPageSize) => navigate({ pageSize: nextPageSize, page: 1 })}
+      // 헤더 클릭 정렬 — URL 쿼리(sort/order)로 서버 정렬. 오름→내림→해제 순환.
+      // 해제(nextOrder=null)면 sort/order를 URL에서 지운다(기본 순서로 복귀). 항상 첫 페이지로.
+      sort={sort}
+      order={order}
+      onSortChange={(key, nextOrder) =>
+        navigate({
+          sort: nextOrder ? key : undefined,
+          order: nextOrder ?? undefined,
+          page: 1,
+        })
+      }
       renderDetail={(row) => (
         <div className="flex flex-col gap-4">
           <StatusStepper
