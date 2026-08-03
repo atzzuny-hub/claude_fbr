@@ -10,12 +10,13 @@ import { DateTimeCell } from "@/components/common/date-time-cell";
 import { exportRowsToCsv } from "@/components/common/excel-download-button";
 import { mergeSearchParams } from "@/lib/utils/search-params";
 import { formatDate, formatDateTime } from "@/lib/utils/datetime";
-import { INBOUND_STATUS, INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
+import { INBOUND_STATUS_FLOW, INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
 
-const STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success"> = {
+const STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive"> = {
   SCHEDULED: "info",
   WAITING: "warning",
   RECEIVED: "success",
+  CANCELLED: "destructive",
 };
 
 interface DemoInboundTableProps {
@@ -74,8 +75,10 @@ export function DemoInboundTable({ data, total, page, pageSize, currentQuery }: 
       renderDetail={(row) => (
         <div className="flex flex-col gap-4">
           <StatusStepper
-            steps={INBOUND_STATUS.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
+            steps={INBOUND_STATUS_FLOW.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
             currentKey={row.status}
+            // 취소는 파이프라인 밖 종료 상태 — 붉은 X 단일 노드로 표시
+            terminal={row.status === "CANCELLED" ? { label: INBOUND_STATUS_LABEL.CANCELLED } : undefined}
             className="max-w-md"
           />
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">

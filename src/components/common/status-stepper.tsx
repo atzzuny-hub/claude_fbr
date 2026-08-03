@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface StatusStep {
@@ -11,16 +11,38 @@ export interface StatusStepperProps {
   steps: StatusStep[];
   /** 현재 위치한 단계의 key (예: INBOUND_STATUS 값 "WAITING") */
   currentKey: string;
+  /**
+   * 취소처럼 순차 파이프라인 밖의 종료 상태일 때 지정한다. 지정하면 진행 단계(steps) 대신
+   * 붉은 X 단일 노드 하나만 그 라벨로 표시한다(입고·출고·반품 공통 취소 표현).
+   */
+  terminal?: { label: string };
   className?: string;
 }
 
 /**
  * 단계 진행 표시 — 입고(예정→대기→입고), NEW 요청(제출됨→WMS 등록 대기→등록 완료) 등
  * 순차 상태 흐름 전용. steps/currentKey는 도메인 상태 라벨 맵을 그대로 주입받는다.
+ * 취소 등 파이프라인 밖 종료 상태는 terminal prop으로 붉은 X 단일 노드를 그린다.
  *
  * 리브온 솔루션 디자인 템플릿 톤: 완료=success(초록), 현재=primary(인디고), 미완료=중립(회색 보더).
  */
-export function StatusStepper({ steps, currentKey, className }: StatusStepperProps) {
+export function StatusStepper({ steps, currentKey, terminal, className }: StatusStepperProps) {
+  // 취소 등 종료 상태 — 진행 단계 대신 붉은 X 단일 노드만 표시한다.
+  if (terminal) {
+    return (
+      <ol className={cn("flex w-full items-start", className)}>
+        <li className="flex items-center">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full border-2 border-danger bg-danger-bg text-danger">
+              <X className="size-3.5" aria-hidden="true" />
+            </span>
+            <span className="max-w-20 text-center text-xs font-medium text-danger">{terminal.label}</span>
+          </div>
+        </li>
+      </ol>
+    );
+  }
+
   const currentIndex = Math.max(
     0,
     steps.findIndex((step) => step.key === currentKey),

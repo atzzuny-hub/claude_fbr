@@ -2,6 +2,7 @@ import { getClients, getInbounds, getSession, getWmsLinks } from "@/lib/data";
 import {
   CLIENT_STATUS_LABEL,
   INBOUND_STATUS,
+  INBOUND_STATUS_FLOW,
   INBOUND_STATUS_LABEL,
   WMS_REQUEST_STATUS,
   WMS_REQUEST_STATUS_LABEL,
@@ -29,10 +30,11 @@ const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS.map((status) => ({
   label: INBOUND_STATUS_LABEL[status],
 }));
 
-const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success"> = {
+const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive"> = {
   SCHEDULED: "info",
   WAITING: "warning",
   RECEIVED: "success",
+  CANCELLED: "destructive",
 };
 
 interface DevComponentsPageProps {
@@ -142,8 +144,18 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
               입고 — 예정 → 대기 → 입고
             </p>
             <StatusStepper
-              steps={INBOUND_STATUS.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
+              steps={INBOUND_STATUS_FLOW.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
               currentKey="WAITING"
+            />
+          </div>
+          <div className="rounded-2xl bg-card p-4 shadow-[0_8px_24px_rgba(30,20,80,0.06)]">
+            <p className="mb-4 text-xs font-medium text-tertiary-foreground">
+              입고 — 취소(파이프라인 밖 종료 상태)
+            </p>
+            <StatusStepper
+              steps={INBOUND_STATUS_FLOW.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
+              currentKey="CANCELLED"
+              terminal={{ label: INBOUND_STATUS_LABEL.CANCELLED }}
             />
           </div>
           <div className="rounded-2xl bg-card p-4 shadow-[0_8px_24px_rgba(30,20,80,0.06)]">

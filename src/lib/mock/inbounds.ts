@@ -18,19 +18,21 @@ for (const sku of mockSkus) {
   skusByClient.set(sku.clientId, list);
 }
 
-// RECEIVED 비중이 가장 높고 WAITING/SCHEDULED가 섞이도록 설계한 7칸 순환表.
+// RECEIVED 비중이 가장 높고 WAITING/SCHEDULED가 섞이며 CANCELLED(취소)도 일부 나오도록 설계한 9칸 순환表.
 // 길이를 홀수로 둔 것은 의도적 설계: clientIndex(= i % 20, 20은 짝수)와 i를 더한
 // 값은 항상 짝수가 되므로, 순환 길이가 짝수면 홀수 인덱스(SCHEDULED 등)가 영영
-// 선택되지 않는 대칭성 버그가 생긴다. 길이를 2와 서로소인 홀수(7)로 두면
+// 선택되지 않는 대칭성 버그가 생긴다. 길이를 2와 서로소인 홀수(9)로 두면
 // "짝수만 나오는 값 mod 홀수"가 전체 나머지를 모두 순회하게 되어 이 문제가 사라진다.
 const STATUS_CYCLE: InboundStatus[] = [
   "RECEIVED",
-  "RECEIVED",
   "WAITING",
   "SCHEDULED",
   "RECEIVED",
+  "CANCELLED",
   "WAITING",
+  "RECEIVED",
   "SCHEDULED",
+  "CANCELLED",
 ];
 void INBOUND_STATUS; // 상태값 출처 문서화용 참조
 
@@ -74,8 +76,10 @@ export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_
   // 접수일을 날짜 풀보다 6일 앞으로 당겨 두면, 뒤에 더하는 도착(+2~4일)·완료(+1~2일)까지
   // 모두 풀의 마지막 날짜(=기준일 2026-07-31) 안에 들어와 미래 날짜가 생기지 않는다.
   const receiptDay = addDays(pickDate(i, 0), -6);
-  // 상태별 진행 단계: 예정=접수만, 대기=도착까지, 입고=완료까지
-  const arrivalDay = status === "SCHEDULED" ? null : addDays(receiptDay, 2 + (i % 3));
+  // 상태별 진행 단계: 예정=접수만, 대기=도착까지, 입고=완료까지.
+  // 취소(CANCELLED)는 종료 상태 — 접수 후 취소된 것으로 보아 도착/완료일 없이 접수일만 둔다.
+  const arrivalDay =
+    status === "SCHEDULED" || status === "CANCELLED" ? null : addDays(receiptDay, 2 + (i % 3));
   const completedDay =
     status === "RECEIVED" && arrivalDay ? addDays(arrivalDay, 1 + (i % 2)) : null;
 

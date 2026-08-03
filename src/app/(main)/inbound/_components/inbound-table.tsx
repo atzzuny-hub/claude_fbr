@@ -13,11 +13,15 @@ import { cn } from "@/lib/utils";
 import { INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
 import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
 
-/** StatusBadge tone 매핑 — 예정(info)→대기(warning)→입고(success), StatusBadge 문서의 권장 매핑을 따른다 */
-const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success"> = {
+/**
+ * StatusBadge tone 매핑 — 예정(info)→대기(warning)→입고(success), StatusBadge 권장 매핑을 따른다.
+ * 취소는 파이프라인 밖 종료 상태라 붉은 톤(destructive)으로 표시한다.
+ */
+const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive"> = {
   SCHEDULED: "info",
   WAITING: "warning",
   RECEIVED: "success",
+  CANCELLED: "destructive",
 };
 
 interface InboundTableProps {
