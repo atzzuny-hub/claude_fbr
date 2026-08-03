@@ -64,7 +64,6 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
       <PageHeader
         title="입고현황"
         description="입고 목록을 조회하고 입고상태(예정 → 대기 → 입고) 진행을 추적합니다."
-        actions={<InboundDownloadButton data={exportResult.items} />}
         className="shrink-0"
       />
 
@@ -87,6 +86,10 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
         page={inbounds.page}
         pageSize={inbounds.pageSize}
         currentQuery={flat}
+        // 표 상단 툴바에 놓을 "검색결과 전체 다운로드"(F012) — 전체 검색결과(exportResult)로 렌더.
+        // 서버에서 클라이언트 컴포넌트 엘리먼트를 만들어 prop으로 넘긴다(data만 직렬화 전달).
+        // key: 서버→클라이언트로 넘긴 엘리먼트를 자식으로 렌더할 때 React key 경고를 막는다.
+        toolbarActions={<InboundDownloadButton key="inbound-download" data={exportResult.items} />}
       />
     </div>
   );

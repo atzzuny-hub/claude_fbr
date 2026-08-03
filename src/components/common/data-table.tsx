@@ -84,6 +84,11 @@ export interface DataTableProps<T> {
   /** 행 단위 액션 슬롯 — 예: 행별 엑셀 다운로드 아이콘 */
   rowActions?: (row: T) => React.ReactNode;
   /**
+   * 표 상단 툴바(검색영역과 표 사이, 우측)에 놓을 화면별 액션 — 예: 검색결과 다운로드 버튼.
+   * 공통 컴포넌트가 특정 부품에 의존하지 않도록 상위에서 렌더된 노드를 주입받는다.
+   */
+  toolbarActions?: React.ReactNode;
+  /**
    * 남은 높이를 채우고 표 안에서만 스크롤한다(lg 이상). 헤더 행은 상단에 고정되고,
    * 페이지네이션은 스크롤 영역 밖에 남아 항상 보인다.
    * 이 모드를 쓰려면 부모가 높이가 정해진 flex 컬럼이어야 한다 — 아니면 표 영역이 0으로
@@ -174,6 +179,7 @@ export function DataTable<T>({
   onSortChange,
   renderDetail,
   rowActions,
+  toolbarActions,
   fillHeight = false,
   className,
 }: DataTableProps<T>) {
@@ -370,18 +376,22 @@ export function DataTable<T>({
 
   return (
     <div className={cn("flex flex-col gap-3", fillHeight && "lg:min-h-0 lg:flex-1", className)}>
-      {/* 표 상단 툴바 — 검색영역과 표 사이. 지금은 "열 너비 초기화"만 둔다(resizable일 때). */}
-      {resizableColumns && (
-        <div className="flex shrink-0 items-center justify-end">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={resetColumnWidths}
-            className="h-8 gap-1.5 px-2 text-xs text-tertiary-foreground"
-          >
-            <RotateCcw className="size-3.5" />열 너비 초기화
-          </Button>
+      {/* 표 상단 툴바 — 검색영역과 표 사이. 열 너비 초기화(resizable일 때)와 화면별 액션(toolbarActions).
+       * 공통 컴포넌트라 특정 부품을 직접 알지 않고, 다운로드 등은 toolbarActions로 주입받는다. */}
+      {(resizableColumns || toolbarActions) && (
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          {resizableColumns && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={resetColumnWidths}
+              className="h-8 gap-1.5 px-2 text-xs text-tertiary-foreground"
+            >
+              <RotateCcw className="size-3.5" />열 너비 초기화
+            </Button>
+          )}
+          {toolbarActions}
         </div>
       )}
       {/* 스크롤 컨테이너는 Table 내부의 table-container 하나뿐이다 — sticky 헤더가 이 컨테이너를

@@ -31,6 +31,8 @@ interface InboundTableProps {
   pageSize: number;
   /** 부모(서버 컴포넌트)가 이미 읽은 현재 필터값 — 페이지/페이지크기만 바꿀 때 나머지를 보존한다 */
   currentQuery: Record<string, string>;
+  /** 표 상단 툴바에 놓을 액션(예: 검색결과 다운로드 버튼) — page.tsx가 전체 검색결과로 렌더해 넘긴다 */
+  toolbarActions?: React.ReactNode;
 }
 
 /**
@@ -38,7 +40,7 @@ interface InboundTableProps {
  * DataTable/ExcelDownloadButton처럼 함수 props를 받는 컴포넌트는 서버 컴포넌트(page.tsx)에서
  * 직접 사용할 수 없어(RSC 경계) 이 래퍼를 거친다.
  */
-export function InboundTable({ data, total, page, pageSize, currentQuery }: InboundTableProps) {
+export function InboundTable({ data, total, page, pageSize, currentQuery, toolbarActions }: InboundTableProps) {
   const router = useRouter();
 
   function navigate(updates: Record<string, string | number | undefined>) {
@@ -87,6 +89,8 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
       // 헤더 우측 경계를 드래그해 컬럼 너비 조절 가능 — 조절값은 persistKey로 브라우저에 저장·복원
       resizableColumns
       persistKey="inbound"
+      // 표 상단 툴바(열 너비 초기화 옆)에 검색결과 다운로드 버튼을 놓는다
+      toolbarActions={toolbarActions}
       columns={columns}
       data={data}
       getRowId={(row) => row.id}
