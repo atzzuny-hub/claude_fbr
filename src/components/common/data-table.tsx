@@ -691,33 +691,29 @@ export function DataTable<T>({
               variant="ghost"
               size="sm"
               onClick={resetColumnWidths}
-              className="h-8 gap-1.5 px-2 text-xs text-tertiary-foreground"
+              className="h-8 gap-1.5 px-2 text-xs "
             >
               <RotateCcw className="size-3.5" />열 너비 초기화
             </Button>
           )}
-          {/* 행 가상화 토글 — 지금 몇 행이 실제로 그려졌는지(그린 행/전체 행) 함께 보여 준다.
-           * 끄면 모든 행을 한 번에 그리므로 브라우저 Ctrl+F로 페이지 전체를 찾거나 인쇄할 때 쓴다. */}
+          {/* 행 가상화 토글 — 지금 몇 행이 실제로 그려졌는지(그린 행/전체 행) 함께 보여 준다. */}
           {showVirtualizeToggle && (
             <Button
               type="button"
-              variant={virtualizeRows ? "ghost": "secondary" }
+              variant={"ghost"}
               size="sm"
               aria-pressed={virtualizeRows}
               onClick={() => setVirtualizeRows((enabled) => !enabled)}
               // 지금 몇 행이 실제로 그려졌는지(그린 행/전체 행)를 툴팁에 함께 보여 준다.
               title={
                 virtualizeRows
-                  ? `행 가상화 켜짐 — 화면에 보이는 행만 그립니다(지금 ${renderedRowCount}/${data.length}행). 끄면 모든 행을 한 번에 그립니다(Ctrl+F로 전체 검색 가능, 행이 많으면 느려짐).`
-                  : `행 가상화 꺼짐 — 모든 행(${data.length}행)을 한 번에 그립니다. 켜면 화면에 보이는 행만 그려 첫 렌더가 빨라집니다.`
+                  ? `조건검색 사용안함 — 화면에 보이는 내용에서만 Ctrl+F로 검색가능`
+                  : `조건검색 — Ctrl+F로 전체 검색 가능, 행이 많으면 느려짐.`
               }
-              className={cn("h-8 gap-1.5 px-2 text-xs", virtualizeRows && "text-tertiary-foreground")}
+              className={"h-8 gap-1.5 px-2 text-xs"}
             >
               <Rows3 className="size-3.5" />
               전체검색 {virtualizeRows ? "OFF" : "ON"}
-              {/* <span className="font-mono tabular-nums opacity-70">
-                {renderedRowCount}/{data.length}
-              </span> */}
             </Button>
           )}
           {toolbarActions}
