@@ -85,8 +85,11 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
       />
 
       {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.
-       * SearchPanel은 옵션을 넘긴 필터만 렌더링하므로, 클라이언트·국가 옵션은 넘기지 않는다
-       * (검색 조건은 화면마다 다르다 — 사용자 확정). 서버 스코핑은 그대로 lib/data가 담당한다. */}
+       * SearchPanel은 옵션을 넘긴 필터만 렌더링한다 — 클라이언트·국가 옵션은 지금 넘기지 않는다.
+       * PRD F013은 운영자에게 이 두 필터를 요구하지만, 실제 필터 파라미터를 Swagger로 맞출 때
+       * 6개 목록 화면 전체에 대해 함께 결정하기로 보류했다(CLAUDE.md 「미확정(TBD)」 참조).
+       * 노출로 정해지면 여기서 clientOptions·countryOptions만 넘기면 된다 — 필터링·스키마·
+       * SearchPanel 렌더는 이미 구현되어 있다. 서버 스코핑은 그대로 lib/data가 담당한다. */}
       <SearchPanel
         basePath="/inbound"
         role={session.role}
