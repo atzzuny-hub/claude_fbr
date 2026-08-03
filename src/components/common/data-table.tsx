@@ -99,7 +99,7 @@ export interface DataTableProps<T> {
   className?: string;
 }
 
-const DEFAULT_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const DEFAULT_PAGE_SIZE_OPTIONS = [100, 200, 300, 500];
 
 /** 드래그로 줄일 수 있는 컬럼 최소 너비(px) */
 const MIN_COLUMN_WIDTH = 48;
@@ -363,6 +363,15 @@ export function DataTable<T>({
   const rangeEnd = total === 0 ? 0 : Math.min(safePage * pageSize, total);
 
   /*
+   * 현재 pageSize가 선택지에 없으면(URL 쿼리로 임의 값이 들어온 경우, 또는 화면이 선택지 밖의
+   * 기본값을 쓰는 경우) 그 값을 선택지에 끼워 넣는다 — 없으면 Select가 매칭 항목을 못 찾아
+   * 트리거가 빈칸으로 보인다.
+   */
+  const resolvedPageSizeOptions = pageSizeOptions.includes(pageSize)
+    ? pageSizeOptions
+    : [...pageSizeOptions, pageSize].sort((a, b) => a - b);
+
+  /*
    * 헤더 행 고정 — 표가 스크롤되는 fillHeight 모드에서만 켠다(그 외에는 스크롤이 없어 무의미).
    * sticky는 thead/tr 대신 각 th에 걸어야 브라우저 간 동작이 일정하다.
    * 배경: 표는 캔버스(bg-background) 위에 바로 놓이므로 헤더도 같은 색으로 채워 행이 뒤로
@@ -621,11 +630,12 @@ export function DataTable<T>({
           <div className="flex items-center gap-2">
             <span className="text-xs">Rows per page</span>
             <Select value={String(pageSize)} onValueChange={(value) => onPageSizeChange(Number(value))}>
-              <SelectTrigger size="sm" className="w-16">
+              {/* w-20: 3자리(100~500)가 잘리지 않는 최소 폭 — 트리거 좌우 패딩 + 화살표를 뺀 여백 기준 */}
+              <SelectTrigger size="sm" className="w-20">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {pageSizeOptions.map((option) => (
+                {resolvedPageSizeOptions.map((option) => (
                   <SelectItem key={option} value={String(option)}>
                     {option}
                   </SelectItem>

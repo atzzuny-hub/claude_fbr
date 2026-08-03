@@ -1,7 +1,7 @@
 // PRD: F001(입고현황 조회), F012(목록 검색·엑셀 다운로드), F013(역할별 데이터 스코핑)
 // — 입고현황 페이지 (접근 권한: 공통·데이터 스코핑, 로그인 후 기본 진입 화면)
 import { getInbounds, getSession, getWmsLinks } from "@/lib/data";
-import { inboundSearchParamsSchema, type InboundSearchParams } from "@/types";
+import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, inboundSearchParamsSchema, type InboundSearchParams } from "@/types";
 import { flattenSearchParams } from "@/lib/utils/search-params";
 import { PageHeader } from "@/components/common/page-header";
 import { SearchPanel, type SelectOption } from "@/components/common/search-panel";
@@ -24,8 +24,8 @@ interface InboundPageProps {
 
 export default async function InboundPage({ searchParams }: InboundPageProps) {
   const flat = flattenSearchParams(await searchParams);
-  const page = Number(flat.page) > 0 ? Number(flat.page) : 1;
-  const pageSize = Number(flat.pageSize) > 0 ? Number(flat.pageSize) : 20;
+  const page = Number(flat.page) > 0 ? Number(flat.page) : DEFAULT_PAGE;
+  const pageSize = Number(flat.pageSize) > 0 ? Number(flat.pageSize) : DEFAULT_PAGE_SIZE;
 
   // URL 쿼리는 신뢰할 수 없는 입력이므로 lib/data에 넘기기 전 zod로 좁힌다.
   // status/country가 enum을 벗어나면 해당 필드만 무시되고 나머지 필터는 유지된다.

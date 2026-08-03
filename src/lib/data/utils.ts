@@ -1,4 +1,4 @@
-import type { Paginated } from "@/types";
+import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, type Paginated } from "@/types";
 
 /**
  * lib/data 공통 유틸 — 검색/페이지네이션/지연 시뮬레이션.
@@ -50,8 +50,8 @@ export function sortItems<T>(
 }
 
 export function paginate<T>(items: T[], page?: number, pageSize?: number): Paginated<T> {
-  const safePage = page && page > 0 ? Math.floor(page) : 1;
-  const safePageSize = pageSize && pageSize > 0 ? Math.floor(pageSize) : 20;
+  const safePage = page && page > 0 ? Math.floor(page) : DEFAULT_PAGE;
+  const safePageSize = pageSize && pageSize > 0 ? Math.floor(pageSize) : DEFAULT_PAGE_SIZE;
   const start = (safePage - 1) * safePageSize;
   return {
     items: items.slice(start, start + safePageSize),

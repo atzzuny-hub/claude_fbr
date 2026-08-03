@@ -28,7 +28,9 @@ export interface Paginated<T> {
 }
 
 export const DEFAULT_PAGE = 1;
-export const DEFAULT_PAGE_SIZE = 20;
+// 목록 기본 표시 건수 — 사용자 확정값(선택지 100/200/300/500 중 기본 500).
+// 화면·lib/data 모두 이 상수를 참조한다(하드코딩 금지).
+export const DEFAULT_PAGE_SIZE = 500;
 
 // ── 검색 패널 공통 파라미터 ────────────────────────────────────────
 // F012 검색 패널 스펙(기간·기준일자·WMS LINK·검색어)과 1:1 대응.
