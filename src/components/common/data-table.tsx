@@ -278,6 +278,15 @@ const ROW_SHADOW = "drop-shadow-[0_2px_6px_rgba(30,20,80,0.05)]";
 const ROW_SHADOW_HOVER = "hover:drop-shadow-[0_6px_14px_rgba(30,20,80,0.08)]";
 const ROW_SHADOW_SELECTED = "drop-shadow-[0_6px_16px_rgba(56,30,150,0.12)]";
 
+/*
+ * 툴바 버튼 사이 세로 구분선(|) — 버튼들이 저마다 조건부로 숨을 수 있어 특정 쌍 사이에
+ * 구분선 요소를 직접 끼우는 대신, CSS 형제 선택자(* + *)의 ::before로 그린다.
+ * 이러면 "실제로 렌더된 이웃 사이"에만 자동으로 생긴다(맨 앞/뒤에는 안 생김).
+ * gap-2(8px)의 한가운데(-left-1)에 오도록 배치해 버튼 간격은 그대로 유지된다.
+ */
+const TOOLBAR_DIVIDER_CLASS =
+  "[&>*+*]:relative [&>*+*]:before:absolute [&>*+*]:before:top-1/2 [&>*+*]:before:-left-1 [&>*+*]:before:h-4 [&>*+*]:before:w-px [&>*+*]:before:-translate-y-1/2 [&>*+*]:before:bg-border";
+
 export function DataTable<T>({
   columns,
   data,
@@ -899,7 +908,7 @@ export function DataTable<T>({
           </span>
            건
         </span>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className={cn("flex flex-wrap items-center justify-end gap-2", TOOLBAR_DIVIDER_CLASS)}>
           {resizableColumns && (
             <Button
               type="button"
