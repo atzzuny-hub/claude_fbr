@@ -56,7 +56,7 @@ export function PageHeader({
           className="mb-1 flex items-center justify-end gap-1 text-xs text-tertiary-foreground"
         >
           {/* 로그인 후 기본 진입 화면(= 앱의 홈). 헤더 로고 링크와 같은 목적지로 맞춘다. */}
-          <Link href="/inbound" className="hover:text-foreground hover:underline">
+          <Link href="/" className="hover:text-foreground hover:underline">
             REVE-ON
           </Link>
           {breadcrumbs.map((crumb, index) => {
