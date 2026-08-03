@@ -385,10 +385,19 @@ export function DataTable<T>({
 
   return (
     <div className={cn("flex flex-col gap-3", fillHeight && "lg:min-h-0 lg:flex-1", className)}>
-      {/* 표 상단 툴바 — 검색영역과 표 사이. 열 너비 초기화(resizable일 때)와 화면별 액션(toolbarActions).
+      {/* 표 상단 툴바 — 검색영역과 표 사이. 왼쪽은 조회 결과 총 건수,
+       * 오른쪽은 열 너비 초기화(resizable일 때)·화면별 액션(toolbarActions).
        * 공통 컴포넌트라 특정 부품을 직접 알지 않고, 다운로드 등은 toolbarActions로 주입받는다. */}
-      {(resizableColumns || toolbarActions) && (
-        <div className="flex shrink-0 items-center justify-end gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        {/* 총 건수 = 현재 페이지가 아니라 검색 조건에 걸린 전체 건수(total) */}
+        <span className="text-xs text-tertiary-foreground">
+          총{" "}
+          <span className="font-mono font-semibold tabular-nums text-foreground">
+            {total.toLocaleString()}
+          </span>
+          건
+        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {resizableColumns && (
             <Button
               type="button"
@@ -402,7 +411,7 @@ export function DataTable<T>({
           )}
           {toolbarActions}
         </div>
-      )}
+      </div>
       {/* 스크롤 컨테이너는 Table 내부의 table-container 하나뿐이다 — sticky 헤더가 이 컨테이너를
        * 기준으로 고정되므로, 높이 제약도 바깥에 div를 더 두지 않고 여기에 직접 건다 */}
       <Table
