@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface PageHeaderBreadcrumb {
@@ -15,7 +14,11 @@ export interface PageHeaderProps {
    * 데이터 계약 변경 없이 화면 조립 단계가 선택적으로 넘기는 값(예: 조회 결과 total).
    */
   count?: number;
-  /** 페이지 내부 보조 브레드크럼 — 헤더(AppShell)의 전역 "REVE / 메뉴명"과는 별개, 선택 사용 */
+  /**
+   * 현재 위치 경로 — 헤더 우측 상단에 "REVE-ON / …" 형태로 표시한다(선택 사용).
+   * 홈(REVE-ON)은 컴포넌트가 항상 앞에 붙이므로, 그 뒤 단계만 넘긴다.
+   * 마지막 항목은 현재 페이지로 취급해 링크를 걸지 않는다 — 중간 단계에만 href를 준다.
+   */
   breadcrumbs?: PageHeaderBreadcrumb[];
   /** 우측 액션 슬롯 — 예: "SKU 등록", "WMS 등록" 버튼, ExcelDownloadButton */
   actions?: React.ReactNode;
@@ -40,17 +43,34 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3 border-b border-border pb-4",
+        "mb-5 border-b border-border pb-4",
         className,
       )}
     >
-      <div className="min-w-0">
-        {breadcrumbs && breadcrumbs.length > 0 && (
-          <nav aria-label="breadcrumb" className="mb-1 flex items-center gap-1 text-xs text-tertiary-foreground">
-            {breadcrumbs.map((crumb, index) => (
+      {/* 브레드크럼 — 헤더 우측 상단에 한 줄로 둔다(타이틀·액션 행과 분리).
+       * 홈은 목록마다 같으므로 map 밖에서 한 번만 그린다 — 안에 두면 크럼브 개수만큼 반복된다.
+       * 마지막 항목은 지금 보고 있는 페이지라 링크를 걸지 않고 aria-current로만 알린다. */}
+      {breadcrumbs && breadcrumbs.length > 0 && (
+        <nav
+          aria-label="breadcrumb"
+          className="mb-1 flex items-center justify-end gap-1 text-xs text-tertiary-foreground"
+        >
+          {/* 로그인 후 기본 진입 화면(= 앱의 홈). 헤더 로고 링크와 같은 목적지로 맞춘다. */}
+          <Link href="/inbound" className="hover:text-foreground hover:underline">
+            REVE-ON
+          </Link>
+          {breadcrumbs.map((crumb, index) => {
+            const isCurrent = index === breadcrumbs.length - 1;
+            return (
               <span key={`${crumb.label}-${index}`} className="flex items-center gap-1">
-                {index > 0 && <ChevronRight className="size-3" aria-hidden="true" />}
-                {crumb.href ? (
+                <span aria-hidden="true" className="text-border">
+                  /
+                </span>
+                {isCurrent ? (
+                  <span aria-current="page" className="font-medium text-foreground">
+                    {crumb.label}
+                  </span>
+                ) : crumb.href ? (
                   <Link href={crumb.href} className="hover:text-foreground hover:underline">
                     {crumb.label}
                   </Link>
@@ -58,23 +78,28 @@ export function PageHeader({
                   <span>{crumb.label}</span>
                 )}
               </span>
-            ))}
-          </nav>
-        )}
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {/* text-xl = 1.25rem — 요청한 1.2rem에 맞는 Tailwind 타입 스케일 값(임의값 대신 스케일 유지) */}
-          <h1 className="font-heading text-xl font-bold tracking-tight text-foreground">
-            {title}
-            {typeof count === "number" && (
-              <span className="ml-1.5 align-middle text-base font-semibold text-tertiary-foreground">
-                ({count.toLocaleString()})
-              </span>
-            )}
-          </h1>
-          {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            );
+          })}
+        </nav>
+      )}
+      {/* 타이틀(+건수·설명)은 왼쪽, 액션 슬롯은 오른쪽 — 두 요소가 같은 줄에서 아래쪽 기준선을 맞춘다 */}
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            {/* text-xl = 1.25rem — 요청한 1.2rem에 맞는 Tailwind 타입 스케일 값(임의값 대신 스케일 유지) */}
+            <h1 className="font-heading text-xl font-bold tracking-tight text-foreground">
+              {title}
+              {typeof count === "number" && (
+                <span className="ml-1.5 align-middle text-base font-semibold text-tertiary-foreground">
+                  ({count.toLocaleString()})
+                </span>
+              )}
+            </h1>
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+          </div>
         </div>
+        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
     </div>
   );
 }
