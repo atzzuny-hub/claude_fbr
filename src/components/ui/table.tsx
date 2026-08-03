@@ -36,7 +36,9 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      // 자식 결합자(>)로 직속 행만 대상 — 자손(_)이면 셀 안에 중첩된 <table>의 tr까지 잡아
+      // 상세 뷰 등 내부 표의 테두리를 건드린다.
+      className={cn("[&>tr]:border-b", className)}
       {...props}
     />
   )
@@ -46,7 +48,9 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
   return (
     <tbody
       data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
+      // 자식 결합자(>)로 직속 마지막 행만 대상 — 자손(_)이면 셀 안에 중첩된 <table>의
+      // tr:last-child까지 border-width:0으로 지워 상세 표(상품 리스트·합계)의 테두리가 사라진다.
+      className={cn("[&>tr:last-child]:border-0", className)}
       {...props}
     />
   )
