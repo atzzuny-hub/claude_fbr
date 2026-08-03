@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronLeft,
@@ -10,7 +10,9 @@ import {
   Minus,
   Plus,
   RotateCcw,
+  Rows3,
 } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -103,6 +105,46 @@ const DEFAULT_PAGE_SIZE_OPTIONS = [100, 200, 300, 500];
 
 /** 드래그로 줄일 수 있는 컬럼 최소 너비(px) */
 const MIN_COLUMN_WIDTH = 48;
+
+/*
+ * ── 행 가상화 상수 ────────────────────────────────────────────────
+ * 표는 border-spacing-y-2(8px)로 행 사이 간격을 준다 — 가상화 계산에도 같은 간격을 알려 줘야
+ * 스크롤 총 높이와 스페이서 높이가 실제 레이아웃과 어긋나지 않는다.
+ */
+const ROW_GAP_PX = 8;
+/** 아직 측정되지 않은 본문 행의 높이 추정값 — 셀이 whitespace-nowrap이라 일반 행은 높이가 거의 균일하다. */
+const ESTIMATED_ROW_HEIGHT = 68;
+/** 행 확장(+) 상세는 내용에 따라 높이가 크게 달라 추정만 크게 잡고, 렌더 직후 실측으로 대체된다. */
+const ESTIMATED_DETAIL_HEIGHT = 240;
+/** 화면 밖에 미리 그려 둘 행 수 — 빠르게 스크롤해도 빈칸이 스치지 않게 하는 여유분 */
+const ROW_OVERSCAN = 6;
+/**
+ * 서버 렌더(첫 HTML)에서 가정할 뷰포트 높이(px). 실제 높이는 마운트 직후 측정해 대체한다.
+ * 이 값이 없으면 첫 HTML에 행이 하나도 담기지 않아 표가 잠깐 비어 보인다.
+ */
+const SSR_VIEWPORT_HEIGHT = 900;
+
+/**
+ * 이 요소가 실제로 스크롤되는 요소인지 — overflow 설정만 보면 안 되고(표 컨테이너는 가로
+ * overflow 때문에 세로도 auto로 계산된다), 지금 내용이 넘쳐 스크롤이 생겼는지까지 봐야 한다.
+ */
+function isScrollable(element: HTMLElement) {
+  const overflowY = window.getComputedStyle(element).overflowY;
+  if (overflowY !== "auto" && overflowY !== "scroll" && overflowY !== "overlay") return false;
+  return element.scrollHeight > element.clientHeight + 1;
+}
+
+/**
+ * 가상화 단위 항목 — 본문 행 하나가 항목 하나이고, 펼쳐진 행은 상세 행이 바로 뒤에 하나 더 붙는다.
+ * 실제 DOM(<tr> 2개)과 1:1로 맞춰 두면 높이 측정·스크롤 계산이 그대로 들어맞는다.
+ */
+interface RowEntry<T> {
+  /** 측정 캐시 키 — 인덱스가 아니라 행 id 기준이라 행을 펼쳐 목록이 밀려도 캐시가 유지된다 */
+  key: string;
+  id: string;
+  row: T;
+  detail: boolean;
+}
 
 /** persistKey를 localStorage 키로 감싸는 네임스페이스 접두어 */
 const WIDTHS_STORAGE_PREFIX = "reve:datatable:widths:";
@@ -277,7 +319,6 @@ export function DataTable<T>({
     // auto→fixed 전환에 필요한 1회 setState라, 대상 값이 정해질 때만 실행되고 루프가 아니다.
     if (next) {
       widthsRef.current = next;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setColumnWidths(next);
     }
     // columns는 매 렌더 새 배열이라 그대로 넣으면 매번 재실행된다 — 키 시그니처로 대체한다.
@@ -357,6 +398,120 @@ export function DataTable<T>({
   // 빈/로딩/상세 행이 표 전체 폭을 덮도록, 트레일링 스페이서 컬럼까지 포함한 열 수.
   const spannedColSpan = colSpan + (resizeReady ? 1 : 0);
 
+  /*
+   * ── 행 가상화(보이는 영역만 렌더) ─────────────────────────────────
+   * 한 페이지에 수백 행을 그리면 <tr>을 한꺼번에 만드는 비용 때문에 첫 렌더가 눈에 띄게 느려진다.
+   * 그래서 화면에 걸치는 행만 그리고, 화면 밖 행들이 차지할 높이는 위/아래 스페이서 행 하나로
+   * 대신 밀어 준다(스크롤바 길이·스크롤 위치는 그대로 유지된다).
+   *
+   * 스크롤 주체는 화면 크기에 따라 다르다 —
+   *  - fillHeight + lg 이상: 표 컨테이너(table-container)가 스스로 스크롤된다
+   *  - 그 밖(lg 미만 · fillHeight 미사용): 앱 셸의 <main>이 스크롤된다
+   * 앱 셸이 h-dvh + overflow-hidden이라 창(window)은 아예 스크롤되지 않으므로, 창 스크롤을
+   * 가정하면 스크롤 이벤트를 못 받아 첫 화면 분량만 그려진 채 멈춘다. 그래서 특정 요소를
+   * 가정하지 않고 본문에서 위로 올라가며 "지금 실제로 스크롤되는" 첫 조상을 찾아 그것에 붙인다.
+   */
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  // 툴바 토글로 끌 수 있다 — 끄면 모든 행을 한 번에 그린다(전체 Ctrl+F·인쇄가 필요할 때).
+  const [virtualizeRows, setVirtualizeRows] = useState(true);
+
+  const rowEntries: RowEntry<T>[] = [];
+  for (const row of data) {
+    const id = getRowId(row);
+    rowEntries.push({ key: id, id, row, detail: false });
+    if (hasExpand && expandedIds.has(id)) {
+      rowEntries.push({ key: `${id}:detail`, id, row, detail: true });
+    }
+  }
+
+  const virtualized = virtualizeRows && !loading && rowEntries.length > 0;
+
+  /*
+   * 스크롤 주체와 기준점 찾기.
+   * scrollMargin = 스크롤 시작점부터 본문 첫 행까지의 거리(고정 헤더, 또는 <main> 안에서 표 위에
+   * 있는 페이지 헤더·검색영역 높이). 알려 주지 않으면 "지금 보이는 구간"이 그만큼 밀려 계산돼
+   * 스크롤 중 빈칸이 스친다.
+   */
+  const [scroller, setScroller] = useState<{ element: HTMLElement | null; margin: number }>({
+    element: null,
+    margin: 0,
+  });
+  useLayoutEffect(() => {
+    function sync() {
+      const body = bodyRef.current;
+      if (!body) return;
+      let element: HTMLElement | null = null;
+      for (let node = body.parentElement; node; node = node.parentElement) {
+        if (isScrollable(node)) {
+          element = node;
+          break;
+        }
+      }
+      // 아직 아무것도 넘치지 않으면(행이 적을 때) 문서 스크롤러로 둔다 — 어차피 전부 화면에 들어온다.
+      element = element ?? (document.scrollingElement as HTMLElement | null);
+      // 스크롤 위치와 무관한 값이라(스크롤해도 변하지 않는다) 한 번 재면 계속 유효하다.
+      const margin = element
+        ? Math.max(
+            0,
+            Math.round(
+              body.getBoundingClientRect().top - element.getBoundingClientRect().top + element.scrollTop,
+            ),
+          )
+        : 0;
+      setScroller((prev) =>
+        prev.element === element && prev.margin === margin ? prev : { element, margin },
+      );
+    }
+    sync();
+    // 창 크기가 바뀌면 스크롤 주체(표 안 ↔ 셸)와 표 위 높이가 함께 달라진다.
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
+    // 컬럼 구성·고정폭 전환·행 수(행 확장 포함)가 바뀔 때도 다시 잡는다.
+  }, [columnKeys, resizeReady, fillHeight, rowEntries.length]);
+
+  const estimateRowSize = (index: number) =>
+    rowEntries[index]?.detail ? ESTIMATED_DETAIL_HEIGHT : ESTIMATED_ROW_HEIGHT;
+  const getRowKey = (index: number) => rowEntries[index]?.key ?? index;
+
+  /*
+   * React Compiler는 이 API를 만나면 DataTable 메모이제이션을 건너뛴다("Compilation Skipped").
+   * 가상화 값(getVirtualItems 등)은 스크롤할 때마다 새로 읽어야 하므로 메모이제이션을 포기하는 쪽이
+   * 옳은 동작이다 — 캐시되면 스크롤해도 같은 행만 남는다. 그래서 경고는 의도적으로 끈다.
+   */
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const virtualizer = useVirtualizer<HTMLElement, HTMLTableRowElement>({
+    count: rowEntries.length,
+    enabled: virtualized,
+    getScrollElement: () => scroller.element,
+    estimateSize: estimateRowSize,
+    getItemKey: getRowKey,
+    gap: ROW_GAP_PX,
+    overscan: ROW_OVERSCAN,
+    scrollMargin: scroller.margin,
+    initialRect: { width: 0, height: SSR_VIEWPORT_HEIGHT },
+  });
+
+  const virtualItems = virtualized ? virtualizer.getVirtualItems() : [];
+  // 가상화가 꺼져 있으면 측정도 하지 않는다(ref를 붙이지 않음).
+  const measureRow = virtualized ? virtualizer.measureElement : undefined;
+
+  /*
+   * 화면 밖 행들이 차지할 높이 — 위/아래 스페이서 행으로 대신 밀어 준다.
+   * 스페이서 행도 border-spacing으로 행 간격(8px)을 한 번 받으므로 그만큼 뺀 높이를 준다.
+   */
+  const firstItem = virtualItems[0];
+  const lastItem = virtualItems[virtualItems.length - 1];
+  const padTop = firstItem ? Math.max(0, firstItem.start - scroller.margin - ROW_GAP_PX) : 0;
+  const padBottom = lastItem
+    ? Math.max(0, virtualizer.getTotalSize() - (lastItem.end - scroller.margin) - ROW_GAP_PX)
+    : 0;
+  // 지금 실제로 그려진 본문 행 수(상세 행 제외) — 툴바 토글에 표시해 효과를 눈으로 확인할 수 있게 한다.
+  const renderedRowCount = virtualized
+    ? virtualItems.filter((item) => !rowEntries[item.index]?.detail).length
+    : data.length;
+  // 그릴 행이 아예 없을 때(로딩·조회결과 없음)는 토글을 숨긴다 — 켜고 끌 대상이 없다.
+  const showVirtualizeToggle = !loading && data.length > 0;
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(Math.max(1, page), totalPages);
   const rangeStart = total === 0 ? 0 : (safePage - 1) * pageSize + 1;
@@ -383,19 +538,116 @@ export function DataTable<T>({
     ? "lg:sticky lg:top-0 lg:z-20 lg:bg-background lg:shadow-[0_8px_0_0_var(--background)]"
     : undefined;
 
+  /*
+   * 본문 행 하나(또는 펼친 상세 행 하나)를 그린다 — 가상화 여부와 무관하게 같은 함수를 쓴다.
+   * data-index/ref(measureRow)는 가상화가 켜졌을 때만 붙으며, 가상화 계산이 각 행의 실제 높이를
+   * 알아내는 통로다(행 확장처럼 높이가 변하는 경우까지 자동으로 반영된다).
+   */
+  function renderRowEntry(index: number) {
+    const entry = rowEntries[index];
+    if (!entry) return null;
+    const { key, id, row, detail } = entry;
+    const expanded = expandedIds.has(id);
+
+    if (detail) {
+      return (
+        <TableRow
+          key={key}
+          data-index={index}
+          ref={measureRow}
+          className="border-none hover:bg-transparent"
+        >
+          <TableCell data-detail-row={id} colSpan={spannedColSpan} className="rounded-xl bg-row-alt p-5">
+            {renderDetail?.(row)}
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    const cells: React.ReactNode[] = [];
+
+    if (hasLeadingCell) {
+      cells.push(
+        <TableCell key="__row-controls" className={rowCellClass(true, columns.length === 0, expanded)}>
+          <div className="flex items-center gap-1.5">
+            {hasExpand && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className="rounded-full"
+                aria-expanded={expanded}
+                aria-label={expanded ? "상세 접기" : "상세 펼치기"}
+                onClick={() => toggleRow(id)}
+              >
+                {expanded ? <Minus /> : <Plus />}
+              </Button>
+            )}
+            {rowActions?.(row)}
+          </div>
+        </TableCell>,
+      );
+    }
+
+    columns.forEach((column, columnIndex) => {
+      cells.push(
+        <TableCell
+          key={column.key}
+          className={cn(
+            // 스페이서가 있으면(resizeReady) 마지막 데이터 칸은 끝 칸이 아니다 —
+            // 우측 라운드/여백은 스페이서가 맡으므로 여기선 주지 않는다.
+            rowCellClass(
+              !hasLeadingCell && columnIndex === 0,
+              !resizeReady && columnIndex === columns.length - 1,
+              expanded,
+            ),
+            alignClass(column.align, column.numeric),
+            column.numeric && "font-mono tabular-nums",
+            // 고정 폭 모드: 컬럼을 내용보다 좁게 줄였을 때 옆 칸으로 새지 않도록 잘라낸다.
+            resizableColumns && "overflow-hidden text-ellipsis",
+            column.cellClassName,
+          )}
+        >
+          {column.cell(row)}
+        </TableCell>,
+      );
+    });
+
+    // 트레일링 스페이서 셀 — 남는 폭을 카드 배경으로 채워 행이 오른쪽 끝까지 이어지게 한다.
+    // 우측 라운드/여백을 이 칸이 맡는다. 스크롤이 필요할 만큼 넓히면 폭 0으로 접힌다.
+    if (resizeReady) {
+      cells.push(
+        <TableCell key="__row-spacer" aria-hidden className={rowCellClass(false, true, expanded)} />,
+      );
+    }
+
+    return (
+      <TableRow
+        key={key}
+        data-index={index}
+        ref={measureRow}
+        className={cn(
+          "group/row border-none transition-[filter] duration-150 hover:bg-transparent",
+          expanded ? ROW_SHADOW_SELECTED : cn(ROW_SHADOW, ROW_SHADOW_HOVER),
+        )}
+      >
+        {cells}
+      </TableRow>
+    );
+  }
+
   return (
     <div className={cn("flex flex-col gap-3", fillHeight && "lg:min-h-0 lg:flex-1", className)}>
       {/* 표 상단 툴바 — 검색영역과 표 사이. 왼쪽은 조회 결과 총 건수,
-       * 오른쪽은 열 너비 초기화(resizable일 때)·화면별 액션(toolbarActions).
+       * 오른쪽은 열 너비 초기화(resizable일 때)·가상 스크롤 토글·화면별 액션(toolbarActions).
        * 공통 컴포넌트라 특정 부품을 직접 알지 않고, 다운로드 등은 toolbarActions로 주입받는다. */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         {/* 총 건수 = 현재 페이지가 아니라 검색 조건에 걸린 전체 건수(total) */}
         <span className="text-xs text-tertiary-foreground">
-          총{" "}
+          총 {" "}
           <span className="font-mono font-semibold tabular-nums text-foreground">
             {total.toLocaleString()}
           </span>
-          건
+           건
         </span>
         <div className="flex flex-wrap items-center justify-end gap-2">
           {resizableColumns && (
@@ -407,6 +659,30 @@ export function DataTable<T>({
               className="h-8 gap-1.5 px-2 text-xs text-tertiary-foreground"
             >
               <RotateCcw className="size-3.5" />열 너비 초기화
+            </Button>
+          )}
+          {/* 행 가상화 토글 — 지금 몇 행이 실제로 그려졌는지(그린 행/전체 행) 함께 보여 준다.
+           * 끄면 모든 행을 한 번에 그리므로 브라우저 Ctrl+F로 페이지 전체를 찾거나 인쇄할 때 쓴다. */}
+          {showVirtualizeToggle && (
+            <Button
+              type="button"
+              variant={virtualizeRows ? "ghost": "secondary" }
+              size="sm"
+              aria-pressed={virtualizeRows}
+              onClick={() => setVirtualizeRows((enabled) => !enabled)}
+              // 지금 몇 행이 실제로 그려졌는지(그린 행/전체 행)를 툴팁에 함께 보여 준다.
+              title={
+                virtualizeRows
+                  ? `행 가상화 켜짐 — 화면에 보이는 행만 그립니다(지금 ${renderedRowCount}/${data.length}행). 끄면 모든 행을 한 번에 그립니다(Ctrl+F로 전체 검색 가능, 행이 많으면 느려짐).`
+                  : `행 가상화 꺼짐 — 모든 행(${data.length}행)을 한 번에 그립니다. 켜면 화면에 보이는 행만 그려 첫 렌더가 빨라집니다.`
+              }
+              className={cn("h-8 gap-1.5 px-2 text-xs", virtualizeRows && "text-tertiary-foreground")}
+            >
+              <Rows3 className="size-3.5" />
+              전체검색 {virtualizeRows ? "OFF" : "ON"}
+              {/* <span className="font-mono tabular-nums opacity-70">
+                {renderedRowCount}/{data.length}
+              </span> */}
             </Button>
           )}
           {toolbarActions}
@@ -528,7 +804,7 @@ export function DataTable<T>({
             {resizeReady && <TableHead aria-hidden className={stickyHeadClass} />}
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody ref={bodyRef}>
           {loading ? (
             <LoadingRows colSpan={spannedColSpan} rowCount={Math.min(pageSize, 8)} />
           ) : data.length === 0 ? (
@@ -544,92 +820,15 @@ export function DataTable<T>({
               </TableCell>
             </TableRow>
           ) : (
-            data.map((row) => {
-              const id = getRowId(row);
-              const expanded = expandedIds.has(id);
-              const cells: React.ReactNode[] = [];
-
-              if (hasLeadingCell) {
-                cells.push(
-                  <TableCell
-                    key="__row-controls"
-                    className={rowCellClass(true, columns.length === 0, expanded)}
-                  >
-                    <div className="flex items-center gap-1.5">
-                      {hasExpand && (
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="rounded-full"
-                          aria-expanded={expanded}
-                          aria-label={expanded ? "상세 접기" : "상세 펼치기"}
-                          onClick={() => toggleRow(id)}
-                        >
-                          {expanded ? <Minus /> : <Plus />}
-                        </Button>
-                      )}
-                      {rowActions?.(row)}
-                    </div>
-                  </TableCell>,
-                );
-              }
-
-              columns.forEach((column, index) => {
-                cells.push(
-                  <TableCell
-                    key={column.key}
-                    className={cn(
-                      // 스페이서가 있으면(resizeReady) 마지막 데이터 칸은 끝 칸이 아니다 —
-                      // 우측 라운드/여백은 스페이서가 맡으므로 여기선 주지 않는다.
-                      rowCellClass(
-                        !hasLeadingCell && index === 0,
-                        !resizeReady && index === columns.length - 1,
-                        expanded,
-                      ),
-                      alignClass(column.align, column.numeric),
-                      column.numeric && "font-mono tabular-nums",
-                      // 고정 폭 모드: 컬럼을 내용보다 좁게 줄였을 때 옆 칸으로 새지 않도록 잘라낸다.
-                      resizableColumns && "overflow-hidden text-ellipsis",
-                      column.cellClassName,
-                    )}
-                  >
-                    {column.cell(row)}
-                  </TableCell>,
-                );
-              });
-
-              // 트레일링 스페이서 셀 — 남는 폭을 카드 배경으로 채워 행이 오른쪽 끝까지 이어지게 한다.
-              // 우측 라운드/여백을 이 칸이 맡는다. 스크롤이 필요할 만큼 넓히면 폭 0으로 접힌다.
-              if (resizeReady) {
-                cells.push(
-                  <TableCell key="__row-spacer" aria-hidden className={rowCellClass(false, true, expanded)} />,
-                );
-              }
-
-              return (
-                <Fragment key={id}>
-                  <TableRow
-                    className={cn(
-                      "group/row border-none transition-[filter] duration-150 hover:bg-transparent",
-                      expanded ? ROW_SHADOW_SELECTED : cn(ROW_SHADOW, ROW_SHADOW_HOVER),
-                    )}
-                  >
-                    {cells}
-                  </TableRow>
-                  {hasExpand && expanded && (
-                    <TableRow className="border-none hover:bg-transparent">
-                      <TableCell
-                        data-detail-row={id}
-                        colSpan={spannedColSpan}
-                        className="rounded-xl bg-row-alt p-5"
-                      >
-                        {renderDetail?.(row)}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </Fragment>
-              );
-            })
+            <>
+              {/* 위쪽 화면 밖 행들의 높이 */}
+              {padTop > 0 && <SpacerRow colSpan={spannedColSpan} height={padTop} />}
+              {virtualized
+                ? virtualItems.map((item) => renderRowEntry(item.index))
+                : rowEntries.map((_, index) => renderRowEntry(index))}
+              {/* 아래쪽 화면 밖 행들의 높이 */}
+              {padBottom > 0 && <SpacerRow colSpan={spannedColSpan} height={padBottom} />}
+            </>
           )}
         </TableBody>
       </Table>
@@ -717,6 +916,18 @@ function rowCellClass(isFirst: boolean, isLast: boolean, expanded: boolean) {
 /** 행 맨 앞 조작 칸의 폭 — 버튼(24px) 개수와 사이 간격(6px), 좌측 패딩(20px)을 감싼다 */
 function leadingCellWidth(hasExpand: boolean, hasActions: boolean) {
   return hasExpand && hasActions ? "w-24" : "w-14";
+}
+
+/**
+ * 가상화 스페이서 행 — 화면 밖 행들이 차지할 높이만큼 자리만 밀어 준다(내용 없음).
+ * TableRow/TableCell 대신 소재 태그를 쓰는 이유: 카드 배경·테두리·패딩이 붙으면 빈 줄이 보인다.
+ */
+function SpacerRow({ colSpan, height }: { colSpan: number; height: number }) {
+  return (
+    <tr aria-hidden>
+      <td colSpan={colSpan} style={{ height, padding: 0, border: 0 }} />
+    </tr>
+  );
 }
 
 function LoadingRows({ colSpan, rowCount }: { colSpan: number; rowCount: number }) {
