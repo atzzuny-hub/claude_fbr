@@ -46,7 +46,7 @@ export function Header({ session }: HeaderProps) {
           aria-hidden="true"
           className="rounded-md bg-secondary px-1.5 py-1 text-[10px] leading-none font-bold tracking-wider text-secondary-foreground"
         >
-          FBR
+          FBR V-1
         </span>
       </Link>
 
