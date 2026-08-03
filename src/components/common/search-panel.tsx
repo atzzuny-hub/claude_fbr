@@ -67,6 +67,11 @@ export interface SearchPanelProps {
   dateFieldOptions: SelectOption[];
   /** 상태 select 옵션 — *_STATUS_LABEL에서 매핑. 미지정 시 상태 select 자체를 숨긴다(재고현황 등) */
   statusOptions?: SelectOption[];
+  /**
+   * 상태 select의 표시 라벨(선택) — 기본 "상태".
+   * 화면마다 상태의 이름이 다르므로(입고현황=입고상태) 목록의 상태 컬럼명과 같은 값을 넘긴다.
+   */
+  statusLabel?: string;
   /** 클라이언트 select 옵션(OPERATOR 전용) — wmsLinkId 포함, WMS 선택 시 이 값 기준으로 좁혀진다 */
   clientOptions?: ClientFilterOption[];
   /** 국가 select 옵션(OPERATOR 전용, 선택) — 미지정 시 필드 숨김 */
@@ -98,6 +103,7 @@ export function SearchPanel({
   wmsLinkOptions,
   dateFieldOptions,
   statusOptions,
+  statusLabel = "상태",
   clientOptions,
   countryOptions,
   keywordPlaceholder,
@@ -253,7 +259,7 @@ export function SearchPanel({
         )}
 
         {hasStatusFilter && (
-          <Field label="상태" htmlFor={`${uid}-status`}>
+          <Field label={statusLabel} htmlFor={`${uid}-status`}>
             <Select
               items={statusItems}
               value={status}

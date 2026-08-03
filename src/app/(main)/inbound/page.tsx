@@ -1,7 +1,14 @@
 // PRD: F001(입고현황 조회), F012(목록 검색·엑셀 다운로드), F013(역할별 데이터 스코핑)
 // — 입고현황 페이지 (접근 권한: 공통·데이터 스코핑, 로그인 후 기본 진입 화면)
 import { getInbounds, getSession, getWmsLinks } from "@/lib/data";
-import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, inboundSearchParamsSchema, type InboundSearchParams } from "@/types";
+import {
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
+  INBOUND_STATUS,
+  INBOUND_STATUS_LABEL,
+  inboundSearchParamsSchema,
+  type InboundSearchParams,
+} from "@/types";
 import { flattenSearchParams } from "@/lib/utils/search-params";
 import { PageHeader } from "@/components/common/page-header";
 import { SearchPanel, type SelectOption } from "@/components/common/search-panel";
@@ -14,6 +21,13 @@ const DATE_FIELD_OPTIONS: SelectOption[] = [
   { value: "arrivalDate", label: "창고도착일" },
   { value: "completedDate", label: "입고 완료일" },
 ];
+
+// 입고상태 필터 옵션 — 진행 3단계(예정 → 대기 → 입고) + 종료 상태(취소).
+// 표시명은 types/status.ts의 INBOUND_STATUS_LABEL을 그대로 쓴다(라벨 임의 변경 금지).
+const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS.map((status) => ({
+  value: status,
+  label: INBOUND_STATUS_LABEL[status],
+}));
 
 // F012 "검색결과 전체 다운로드"용 상한 — 현재 목데이터 규모(64건) 대비 충분히 큰 값.
 const EXPORT_MAX_ROWS = 1000;
@@ -67,14 +81,17 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
         className="shrink-0"
       />
 
-      {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 검색어.
-       * SearchPanel은 옵션을 넘긴 필터만 렌더링하므로, 상태·클라이언트·국가 옵션은 넘기지 않는다
+      {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.
+       * SearchPanel은 옵션을 넘긴 필터만 렌더링하므로, 클라이언트·국가 옵션은 넘기지 않는다
        * (검색 조건은 화면마다 다르다 — 사용자 확정). 서버 스코핑은 그대로 lib/data가 담당한다. */}
       <SearchPanel
         basePath="/inbound"
         role={session.role}
         wmsLinkOptions={wmsLinkOptions}
         dateFieldOptions={DATE_FIELD_OPTIONS}
+        // 기준일자 바로 옆에 입고상태 select가 놓인다(SearchPanel의 필드 순서)
+        statusOptions={STATUS_OPTIONS}
+        statusLabel="입고상태"
         keywordPlaceholder="주문번호 · 접수번호 · SKU 검색"
         defaultValues={params}
         className="shrink-0"
