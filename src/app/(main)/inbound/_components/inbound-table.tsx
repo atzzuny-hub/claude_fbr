@@ -97,8 +97,10 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
         // 목록은 화면 높이 안에 들어가고, 행이 많으면 표 안에서만 스크롤된다(헤더 고정·페이지네이션 상시 노출).
         // 부모(page.tsx)가 높이 정해진 flex 컬럼이어야 동작한다.
         fillHeight
-        // 헤더 우측 경계를 드래그해 컬럼 너비 조절 가능 — 조절값은 persistKey로 브라우저에 저장·복원
+        // 헤더 우측 경계 드래그로 컬럼 너비 조절, 헤더 셀 드래그로 열 순서 변경 —
+        // 조절값(너비·순서)은 persistKey로 브라우저에 저장·복원
         resizableColumns
+        reorderableColumns
         persistKey="inbound"
         // 표 상단 툴바(열 너비 초기화 옆)에 검색결과 다운로드 버튼을 놓는다
         toolbarActions={toolbarActions}

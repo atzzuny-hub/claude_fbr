@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  ArrowLeftRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -65,8 +66,14 @@ export interface DataTableProps<T> {
    */
   resizableColumns?: boolean;
   /**
-   * 지정하면(그리고 resizableColumns가 켜져 있으면) 사용자가 드래그로 바꾼 컬럼 너비를
-   * 이 키로 localStorage에 저장해 다음 방문에도 복원한다. 표마다 고유한 값을 준다(예: "inbound").
+   * 헤더 셀을 잡고 좌우로 드래그해 열 순서를 바꿀 수 있게 한다. 일정 거리 이상 움직여야
+   * 드래그로 판정하므로 헤더 클릭 정렬과 공존한다(드래그로 끝난 조작의 정렬 클릭은 무시).
+   * 툴바의 "열 순서 초기화" 버튼으로 화면 정의 순서로 되돌릴 수 있다.
+   */
+  reorderableColumns?: boolean;
+  /**
+   * 지정하면 사용자가 드래그로 바꾼 표 레이아웃(컬럼 너비·열 순서)을 이 키로 localStorage에
+   * 저장해 다음 방문에도 복원한다. 표마다 고유한 값을 준다(예: "inbound").
    * 저장 대상은 UI 환경설정뿐 — 인증/세션 값은 저장하지 않는다.
    */
   persistKey?: string;
@@ -110,6 +117,12 @@ const DEFAULT_PAGE_SIZE_OPTIONS = [100, 200, 300, 500];
 
 /** 드래그로 줄일 수 있는 컬럼 최소 너비(px) */
 const MIN_COLUMN_WIDTH = 48;
+
+/**
+ * 헤더 드래그를 열 순서 변경으로 판정하는 최소 이동 거리(px).
+ * 그 미만의 잔움직임은 드래그로 보지 않아 헤더 클릭(정렬)이 평소처럼 동작한다.
+ */
+const REORDER_ACTIVATION_DISTANCE = 6;
 
 /*
  * ── 행 가상화 상수 ────────────────────────────────────────────────
@@ -192,6 +205,64 @@ function clearStoredWidths(persistKey: string) {
   }
 }
 
+/** persistKey를 열 순서 localStorage 키로 감싸는 네임스페이스 접두어 */
+const ORDER_STORAGE_PREFIX = "reve:datatable:order:";
+
+/** 저장된 열 순서(컬럼 key 배열)를 읽어 검증한다. 값이 없거나 손상되면 null. */
+function readStoredOrder(persistKey: string): string[] | null {
+  try {
+    const raw = window.localStorage.getItem(ORDER_STORAGE_PREFIX + persistKey);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    const keys = parsed.filter((value): value is string => typeof value === "string");
+    return keys.length > 0 ? keys : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredOrder(persistKey: string, order: string[]) {
+  try {
+    window.localStorage.setItem(ORDER_STORAGE_PREFIX + persistKey, JSON.stringify(order));
+  } catch {
+    // 저장 실패는 무시한다 — 순서 유지는 부가 기능일 뿐이다.
+  }
+}
+
+function clearStoredOrder(persistKey: string) {
+  try {
+    window.localStorage.removeItem(ORDER_STORAGE_PREFIX + persistKey);
+  } catch {
+    // 무시 — 화면은 이미 기본 순서로 되돌린 뒤다.
+  }
+}
+
+/**
+ * 저장된 key 순서대로 컬럼을 재배열한다. 컬럼 구성이 바뀌어도 저장값이 깨지지 않게
+ * 관대하게 병합한다 — 순서에 없는 새 컬럼은 화면 정의 순서대로 뒤에 붙고, 이미 사라진
+ * key는 무시된다.
+ */
+function applyColumnOrder<T>(
+  columns: DataTableColumn<T>[],
+  order: string[] | null,
+): DataTableColumn<T>[] {
+  if (!order || order.length === 0) return columns;
+  const byKey = new Map(columns.map((column) => [column.key, column]));
+  const result: DataTableColumn<T>[] = [];
+  for (const key of order) {
+    const column = byKey.get(key);
+    if (column) {
+      result.push(column);
+      byKey.delete(key);
+    }
+  }
+  for (const column of columns) {
+    if (byKey.has(column.key)) result.push(column);
+  }
+  return result;
+}
+
 /*
  * 리브온 솔루션 디자인 템플릿(§2·§4.2) — "행 = 카드": 보더 격자 테이블 대신 여백·라운드·
  * 미세 섀도를 가진 카드형 행으로 표현한다.
@@ -220,6 +291,7 @@ export function DataTable<T>({
   loading = false,
   emptyMessage = "조회된 데이터가 없습니다.",
   resizableColumns = false,
+  reorderableColumns = false,
   persistKey,
   sort,
   order,
@@ -392,6 +464,146 @@ export function DataTable<T>({
     setColumnWidths({});
     setResetNonce((nonce) => nonce + 1);
   }
+
+  /*
+   * ── 열 순서 드래그 변경 ─────────────────────────────────────────
+   * 헤더 셀을 잡고 좌우로 끌면 열 순서가 바뀐다. 정렬 클릭과 같은 자리를 쓰므로
+   * REORDER_ACTIVATION_DISTANCE 이상 움직였을 때만 드래그로 판정하고, 그 미만은 클릭으로
+   * 남긴다. 드래그 중에는 포인터가 다른 컬럼의 중심선을 넘는 순간 순서를 즉시 바꿔 결과를
+   * 미리 보여 주고(컬럼 너비는 key 기준이라 순서를 따라간다), 놓으면 그 순서로 확정된다.
+   */
+  const [columnOrder, setColumnOrder] = useState<string[] | null>(null); // null = 화면 정의(props) 순서
+  // pointerdown~pointerup 사이(아직 클릭일 수도 있는 구간 포함)에만 전역 리스너를 걸기 위한 스위치.
+  const [pendingReorderKey, setPendingReorderKey] = useState<string | null>(null);
+  // 임계 이동을 넘어 실제로 드래그 중인 컬럼 — 컬럼 하이라이트·커서 잠금의 기준.
+  const [reorderingKey, setReorderingKey] = useState<string | null>(null);
+  // 드래그 판정 기준값. active 전이는 전역 리스너 안에서 일어나므로 상태가 아니라 ref로 둔다.
+  const reorderRef = useRef<{ key: string; startX: number; startY: number; active: boolean } | null>(null);
+  // 드래그로 끝난 pointerup 직후 도착하는 click(정렬 토글)을 한 번 삼키는 걸쇠.
+  const reorderClickGuardRef = useRef(false);
+  // 최신 순서 미러 — 드래그 종료 시점(onUp, 이벤트 핸들러)에서 저장할 값을 읽는 데 쓴다.
+  const orderRef = useRef<string[] | null>(null);
+
+  // 저장된 열 순서 복원 — localStorage는 클라이언트 전용이라, SSR 첫 렌더(기본 순서)와의
+  // hydration 불일치를 피해 마운트 후 페인트 전에 읽어 적용한다.
+  useLayoutEffect(() => {
+    if (!reorderableColumns || !persistKey) return;
+    const stored = readStoredOrder(persistKey);
+    if (stored) {
+      orderRef.current = stored;
+      setColumnOrder(stored);
+    }
+  }, [reorderableColumns, persistKey]);
+
+  /*
+   * 헤더를 누른 동안에만 전역 포인터 리스너를 건다 — 임계 이동 전에도 움직임을 지켜봐야
+   * 클릭/드래그를 가를 수 있다. 드래그 중 컬럼 순서·경계는 상태가 아니라 헤더 rect 실측으로
+   * 읽는다 — 스왑 직후 리렌더가 끝나기 전의 move에도 항상 실제 보이는 위치 기준으로 판단하고,
+   * 순서가 바뀔 때마다 이 이펙트를 다시 구독할 필요도 없다.
+   */
+  useEffect(() => {
+    if (!pendingReorderKey) return;
+
+    function onMove(moveEvent: PointerEvent) {
+      const drag = reorderRef.current;
+      if (!drag) return;
+      if (!drag.active) {
+        // 아직 클릭일 수 있는 구간 — 임계 이동을 넘기 전에는 아무것도 바꾸지 않는다.
+        if (
+          Math.abs(moveEvent.clientX - drag.startX) < REORDER_ACTIVATION_DISTANCE &&
+          Math.abs(moveEvent.clientY - drag.startY) < REORDER_ACTIVATION_DISTANCE
+        ) {
+          return;
+        }
+        drag.active = true;
+        reorderClickGuardRef.current = true;
+        setReorderingKey(drag.key);
+      }
+      // 행 앞 조작 칸·트레일링 스페이서는 headRefs에 없어 자연히 재배치 대상에서 빠진다.
+      const headers: { key: string; left: number; center: number }[] = [];
+      for (const [key, el] of headRefs.current) {
+        const rect = el.getBoundingClientRect();
+        headers.push({ key, left: rect.left, center: rect.left + rect.width / 2 });
+      }
+      headers.sort((a, b) => a.left - b.left);
+      // "포인터보다 중심이 왼쪽인 다른 컬럼 수" = 드래그 컬럼이 놓일 위치. 다른 컬럼의
+      // 중심선을 넘는 순간에만 순서가 바뀌므로 폭이 크게 다른 컬럼 사이에서도 흔들리지 않는다.
+      const others = headers.filter((header) => header.key !== drag.key);
+      const insertIndex = others.filter((header) => header.center < moveEvent.clientX).length;
+      const next = others.map((header) => header.key);
+      next.splice(insertIndex, 0, drag.key);
+      if (next.join("|") === headers.map((header) => header.key).join("|")) return;
+      orderRef.current = next;
+      setColumnOrder(next);
+    }
+
+    function onUp() {
+      const drag = reorderRef.current;
+      reorderRef.current = null;
+      setPendingReorderKey(null);
+      setReorderingKey(null);
+      if (drag?.active) {
+        // 드래그가 끝난 시점의 최종 순서만 저장한다. 다음 방문 때 복원된다.
+        if (persistKey && orderRef.current) writeStoredOrder(persistKey, orderRef.current);
+        // click은 pointerup 직후(다음 프레임 전)에 도착하므로 걸쇠는 그 뒤에 푼다 —
+        // 헤더 밖에서 놓아 click이 아예 오지 않는 경우에도 걸쇠가 남지 않게 된다.
+        requestAnimationFrame(() => {
+          reorderClickGuardRef.current = false;
+        });
+      }
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    // 터치 스크롤 등으로 브라우저가 제스처를 가져가면 드래그를 조용히 접는다.
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [pendingReorderKey, persistKey]);
+
+  // 실제 드래그로 판정된 동안에만 커서/선택 잠금 — 클릭일 수도 있는 구간에는 걸지 않는다.
+  // (body 스타일 변경은 resizingKey 이펙트와 같은 이유로 핸들러가 아니라 이펙트에서 처리한다.)
+  useEffect(() => {
+    if (!reorderingKey) return;
+    const prevCursor = document.body.style.cursor;
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.cursor = "grabbing";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevSelect;
+    };
+  }, [reorderingKey]);
+
+  function startReorder(event: React.PointerEvent, key: string) {
+    if (!event.isPrimary || event.button !== 0) return;
+    // 새 포인터 조작이 시작됐으니 직전 드래그의 클릭 걸쇠는 무효.
+    reorderClickGuardRef.current = false;
+    // 임계 이동 전 잔움직임으로 헤더 텍스트가 선택되는 것만 막는다 — click(정렬)은 그대로 발생한다.
+    event.preventDefault();
+    reorderRef.current = { key, startX: event.clientX, startY: event.clientY, active: false };
+    setPendingReorderKey(key);
+  }
+
+  /** 드래그로 끝난 조작의 click이 정렬 토글로 번지지 않게 캡처 단계에서 한 번 삼킨다. */
+  function guardReorderClick(event: React.MouseEvent) {
+    if (!reorderClickGuardRef.current) return;
+    reorderClickGuardRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  function resetColumnOrder() {
+    if (persistKey) clearStoredOrder(persistKey);
+    orderRef.current = null;
+    setColumnOrder(null); // 화면 정의(props) 순서로 복귀
+  }
+
+  // 헤더·본문·colgroup 렌더는 전부 이 순서를 따른다 — 열 순서 변경이 표 전체에 함께 적용된다.
+  const orderedColumns = reorderableColumns ? applyColumnOrder(columns, columnOrder) : columns;
 
   // 행 맨 앞 조작 칸 폭(px) — leadingCellWidth의 Tailwind 클래스(w-14/w-24)와 맞춘다.
   const leadingWidthPx = hasLeadingCell ? (hasExpand && hasActions ? 96 : 56) : 0;
@@ -574,7 +786,7 @@ export function DataTable<T>({
 
     if (hasLeadingCell) {
       cells.push(
-        <TableCell key="__row-controls" className={rowCellClass(true, columns.length === 0, expanded)}>
+        <TableCell key="__row-controls" className={rowCellClass(true, orderedColumns.length === 0, expanded)}>
           {/* 조작 칸의 클릭은 행 클릭(상세 열기)으로 번지지 않게 한다 — 펼치기/행 액션이 우선이다 */}
           <div
             className="flex items-center gap-1.5"
@@ -598,7 +810,7 @@ export function DataTable<T>({
       );
     }
 
-    columns.forEach((column, columnIndex) => {
+    orderedColumns.forEach((column, columnIndex) => {
       cells.push(
         <TableCell
           key={column.key}
@@ -607,8 +819,10 @@ export function DataTable<T>({
             // 우측 라운드/여백은 스페이서가 맡으므로 여기선 주지 않는다.
             rowCellClass(
               !hasLeadingCell && columnIndex === 0,
-              !resizeReady && columnIndex === columns.length - 1,
+              !resizeReady && columnIndex === orderedColumns.length - 1,
               expanded,
+              // 드래그 중인 컬럼은 본문까지 세로 밴드로 강조해 어느 열이 움직이는지 보여 준다.
+              column.key === reorderingKey,
             ),
             alignClass(column.align, column.numeric),
             column.numeric && "font-mono tabular-nums",
@@ -673,7 +887,8 @@ export function DataTable<T>({
   return (
     <div className={cn("flex flex-col gap-3", fillHeight && "lg:min-h-0 lg:flex-1", className)}>
       {/* 표 상단 툴바 — 검색영역과 표 사이. 왼쪽은 조회 결과 총 건수,
-       * 오른쪽은 열 너비 초기화(resizable일 때)·가상 스크롤 토글·화면별 액션(toolbarActions).
+       * 오른쪽은 열 너비 초기화(resizable일 때)·열 순서 초기화(reorderable일 때)·
+       * 가상 스크롤 토글·화면별 액션(toolbarActions).
        * 공통 컴포넌트라 특정 부품을 직접 알지 않고, 다운로드 등은 toolbarActions로 주입받는다. */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         {/* 총 건수 = 현재 페이지가 아니라 검색 조건에 걸린 전체 건수(total) */}
@@ -694,6 +909,17 @@ export function DataTable<T>({
               className="h-8 gap-1.5 px-2 text-xs "
             >
               <RotateCcw className="size-3.5" />열 너비 초기화
+            </Button>
+          )}
+          {reorderableColumns && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={resetColumnOrder}
+              className="h-8 gap-1.5 px-2 text-xs "
+            >
+              <ArrowLeftRight className="size-3.5" />열 순서 초기화
             </Button>
           )}
           {/* 행 가상화 토글 — 지금 몇 행이 실제로 그려졌는지(그린 행/전체 행) 함께 보여 준다. */}
@@ -744,6 +970,9 @@ export function DataTable<T>({
         style={resizeReady ? { width: "100%", minWidth: `${totalWidth}px`, tableLayout: "fixed" } : undefined}
         className={cn(
           "border-separate border-spacing-x-0 border-spacing-y-2",
+          // 열 순서 드래그 중에는 표 내부 hover/커서가 끼어들지 않게 잠근다 — 드래그는 전역
+          // 리스너로 진행되므로 그동안 표가 포인터 이벤트를 받을 필요가 없다.
+          reorderingKey && "pointer-events-none",
           // border-spacing은 헤더 행 위에도 8px을 남긴다 — 그대로 두면 sticky(top-0)가 걸리는
           // 순간 헤더가 그 8px만큼 위로 튄다. 표를 미리 8px 끌어올려 처음부터 붙여 둔다.
           // scroll-mt: 포커스가 위쪽 행으로 이동할 때 브라우저가 그 행을 컨테이너 맨 위에 붙이는데,
@@ -754,7 +983,7 @@ export function DataTable<T>({
         {resizeReady && (
           <colgroup>
             {hasLeadingCell && <col style={{ width: `${leadingWidthPx}px` }} />}
-            {columns.map((column) => (
+            {orderedColumns.map((column) => (
               <col key={column.key} style={{ width: `${columnWidths[column.key]}px` }} />
             ))}
             {/* 폭 미지정(auto) 스페이서 — 표 폭(100%)에서 컬럼 합을 뺀 나머지를 흡수한다.
@@ -767,7 +996,7 @@ export function DataTable<T>({
             {hasLeadingCell && (
               <TableHead className={cn(leadingCellWidth(hasExpand, hasActions), "pl-5", stickyHeadClass)} />
             )}
-            {columns.map((column, index) => {
+            {orderedColumns.map((column, index) => {
               const sortable = Boolean(onSortChange) && column.sortable !== false;
               const isSorted = sortable && sort === column.key;
               // 클릭 시 다음 상태: 정렬 안 됨 → 오름 → 내림 → 해제(null) → (다시 오름).
@@ -780,18 +1009,25 @@ export function DataTable<T>({
               return (
                 <TableHead
                   key={column.key}
-                  ref={resizableColumns ? registerHead(column.key) : undefined}
+                  ref={resizableColumns || reorderableColumns ? registerHead(column.key) : undefined}
                   style={column.width ? { width: column.width } : undefined}
                   aria-sort={isSorted ? (order === "desc" ? "descending" : "ascending") : undefined}
+                  // 열 순서 드래그 시작점 — 임계 이동 전에는 아무 효과가 없어 정렬 클릭과 공존한다.
+                  // 우측 경계의 너비 조절 핸들은 pointerdown을 전파하지 않아 여기 걸리지 않는다.
+                  onPointerDown={reorderableColumns ? (event) => startReorder(event, column.key) : undefined}
+                  onClickCapture={reorderableColumns ? guardReorderClick : undefined}
                   className={cn(
                     alignClass(column.align, column.numeric),
                     "h-9 text-[11px] font-medium tracking-wide text-tertiary-foreground",
                     !hasLeadingCell && index === 0 && "pl-5",
-                    index === columns.length - 1 && "pr-5",
+                    index === orderedColumns.length - 1 && "pr-5",
                     // 드래그 핸들의 위치 기준(relative). lg에서는 뒤의 lg:sticky가 위치를 잡으므로
                     // 소스 순서상 sticky가 이겨 헤더 고정 동작은 그대로다.
                     resizableColumns && "group/head relative overflow-hidden",
                     stickyHeadClass,
+                    // 드래그 중인 컬럼 강조 — 본문 셀의 세로 밴드(rowCellClass)와 짝을 이룬다.
+                    // sticky 헤더의 lg:bg-background에 덮이지 않도록 important로 준다.
+                    reorderingKey === column.key && "rounded-md bg-secondary!",
                     column.headerClassName,
                   )}
                 >
@@ -936,11 +1172,12 @@ function SortIndicator({ active, order }: { active: boolean; order?: "asc" | "de
  * 카드형 행의 셀 하나 — 배경/패딩을 공통으로, 좌·우 모서리 라운드는 양 끝 셀에만 준다.
  * isFirst/isLast를 따로 받는 이유: 컬럼이 하나뿐이면 그 셀이 첫 칸이면서 끝 칸이라
  * 한 가지 위치 값으로는 양쪽 라운드를 동시에 표현할 수 없다.
+ * dragging: 열 순서 드래그 중인 컬럼의 셀 — 열 전체가 세로 밴드로 강조되게 배경을 바꾼다.
  */
-function rowCellClass(isFirst: boolean, isLast: boolean, expanded: boolean) {
+function rowCellClass(isFirst: boolean, isLast: boolean, expanded: boolean, dragging = false) {
   return cn(
     "border-none py-4 transition-colors",
-    expanded ? "bg-secondary" : "bg-card group-hover/row:bg-row-alt",
+    expanded || dragging ? "bg-secondary" : "bg-card group-hover/row:bg-row-alt",
     isFirst && "rounded-l-xl pl-5",
     isLast && "rounded-r-xl pr-5",
   );
