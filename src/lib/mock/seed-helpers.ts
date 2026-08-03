@@ -49,6 +49,14 @@ export function addDays(date: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * 날짜(YYYY-MM-DD)+시각 → UTC epoch 밀리초 — 입고처럼 날짜를 epoch(ms, UTC +00:00)로
+ * 다루는 도메인용. Date.parse는 ISO 입력에 대해 결정적이라 실행마다 같은 값을 보장한다.
+ */
+export function toEpoch(date: string, time = "09:00:00"): number {
+  return Date.parse(`${date}T${time}Z`);
+}
+
 export function pad(num: number, width: number): string {
   return String(num).padStart(width, "0");
 }

@@ -9,6 +9,10 @@ import { wmsLinkSyncStatusSchema } from "./status";
  */
 export const wmsLinkSchema = z.object({
   id: z.string(),
+  // 입고 목록 API(Swagger)의 wmsLinkId(int32)가 가리키는 수치 ID — 물류 행이 이 값으로
+  // WMS LINK를 참조하고, 목록 필터 옵션 value도 이 값을 쓴다.
+  // WMS 메뉴 자체 Swagger 확정 전 잠정 필드(확정 시 id와 통합 검토).
+  idx: z.number().int(),
   name: z.string(), // 예: REVE VN (FEI)
   country: countrySchema,
   syncStatus: wmsLinkSyncStatusSchema,

@@ -26,6 +26,31 @@ export function formatDateTime(value: string | null | undefined, fallback = "-")
   return time ? `${formatDate(value)} ${time}` : formatDate(value);
 }
 
+/*
+ * ── epoch 밀리초(UTC) 표기 ────────────────────────────────────────
+ * 입고 목록 API(Swagger 확정)는 날짜를 UTC(+00:00) epoch 밀리초로 준다. UTC 그대로 잘라
+ * 표기하므로 서버·브라우저 어디서 렌더해도 같은 결과다(하이드레이션 안전).
+ * 표시 시간대 정책(현지 창고/KST 변환 여부)은 TBD — 정책이 정해지면 이 함수들만 바꾼다.
+ */
+
+/** epoch ms → "2026-06-13" */
+export function formatEpochDate(ms: number | null | undefined, fallback = "-"): string {
+  if (ms == null) return fallback;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/** epoch ms → "14:20" */
+export function formatEpochTime(ms: number | null | undefined): string {
+  if (ms == null) return "";
+  return new Date(ms).toISOString().slice(11, 16);
+}
+
+/** epoch ms → "2026-06-13 14:20" */
+export function formatEpochDateTime(ms: number | null | undefined, fallback = "-"): string {
+  if (ms == null) return fallback;
+  return `${formatEpochDate(ms)} ${formatEpochTime(ms)}`;
+}
+
 /**
  * Date → <input type="date"> 값("YYYY-MM-DD", 로컬 시간대 기준).
  * toISOString()은 UTC로 변환하므로 자정 전후나 해외 시간대에서 날짜가 하루 밀린다 —

@@ -1,9 +1,12 @@
 import { cn } from "@/lib/utils";
-import { formatDate, formatTime } from "@/lib/utils/datetime";
+import { formatDate, formatEpochDate, formatEpochTime, formatTime } from "@/lib/utils/datetime";
 
 interface DateTimeCellProps {
-  /** ISO 날짜시간 문자열. 값이 없으면(아직 일어나지 않은 단계) fallback만 표시한다 */
-  value: string | null | undefined;
+  /**
+   * ISO 날짜시간 문자열 또는 UTC epoch 밀리초(입고처럼 Swagger가 epoch로 주는 도메인).
+   * 값이 없으면(아직 일어나지 않은 단계) fallback만 표시한다.
+   */
+  value: string | number | null | undefined;
   fallback?: string;
   className?: string;
 }
@@ -15,14 +18,16 @@ interface DateTimeCellProps {
  * 시각은 보조 정보이므로 한 단 작고 조용하게 둔다.
  */
 export function DateTimeCell({ value, fallback = "-", className }: DateTimeCellProps) {
-  if (!value) {
+  if (value == null || value === "") {
     return <span className={cn("text-tertiary-foreground", className)}>{fallback}</span>;
   }
-  const time = formatTime(value);
+  const isEpoch = typeof value === "number";
+  const date = isEpoch ? formatEpochDate(value) : formatDate(value);
+  const time = isEpoch ? formatEpochTime(value) : formatTime(value);
   return (
     <span className={cn("flex min-w-0 flex-col leading-tight tabular-nums", className)}>
       {/* 열 폭이 좁아지면 날짜·시각 각 줄을 …으로 줄인다(고정 폭 표에서만 실제로 잘린다) */}
-      <span className="truncate">{formatDate(value)}</span>
+      <span className="truncate">{date}</span>
       {time && <span className="truncate text-xs text-muted-foreground">{time}</span>}
     </span>
   );

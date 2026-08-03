@@ -4,7 +4,9 @@ import { getInbounds, getSession, getWmsLinks } from "@/lib/data";
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
-  INBOUND_STATUS,
+  INBOUND_DATE_FIELD,
+  INBOUND_DATE_FIELD_LABEL,
+  INBOUND_STATUS_FILTER,
   INBOUND_STATUS_LABEL,
   inboundSearchParamsSchema,
   type InboundSearchParams,
@@ -15,16 +17,16 @@ import { SearchPanel, type SelectOption } from "@/components/common/search-panel
 import { InboundTable } from "./_components/inbound-table";
 import { InboundDownloadButton } from "./_components/inbound-download-button";
 
-// 기준일자 후보 = 목록의 날짜 컬럼 3개와 동일 (lib/data/inbounds.ts의 resolveDate 허용값과 1:1)
-const DATE_FIELD_OPTIONS: SelectOption[] = [
-  { value: "receiptDate", label: "입고접수일" },
-  { value: "arrivalDate", label: "창고도착일" },
-  { value: "completedDate", label: "입고 완료일" },
-];
+// 기준일자 후보 = Req의 searchDt 코드(입고접수일 REQ_DT · 창고도착일 WRHS_DT · 입고완료일 CMPL_DT).
+// 입고완료일은 응답에 표시할 필드가 없어 목록 컬럼에는 없다(검색 기준으로만 존재 — TBD 참조).
+const DATE_FIELD_OPTIONS: SelectOption[] = INBOUND_DATE_FIELD.map((field) => ({
+  value: field,
+  label: INBOUND_DATE_FIELD_LABEL[field],
+}));
 
-// 입고상태 필터 옵션 — 진행 3단계(예정 → 대기 → 입고) + 종료 상태(취소).
-// 표시명은 types/status.ts의 INBOUND_STATUS_LABEL을 그대로 쓴다(라벨 임의 변경 금지).
-const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS.map((status) => ({
+// 입고상태 필터 옵션 — Req의 status enum(PLAN/STANDBY/COMPLETED/CANCELED)과 1:1.
+// UNKNOW는 응답 전용 값이라 필터에 없다. 표시명은 INBOUND_STATUS_LABEL 그대로(라벨 임의 변경 금지).
+const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS_FILTER.map((status) => ({
   value: status,
   label: INBOUND_STATUS_LABEL[status],
 }));
@@ -42,15 +44,13 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
   const pageSize = Number(flat.pageSize) > 0 ? Number(flat.pageSize) : DEFAULT_PAGE_SIZE;
 
   // URL 쿼리는 신뢰할 수 없는 입력이므로 lib/data에 넘기기 전 zod로 좁힌다.
-  // status/country가 enum을 벗어나면 해당 필드만 무시되고 나머지 필터는 유지된다.
+  // status/dateField가 enum을 벗어나면(catch) 해당 필드만 무시되고 나머지 필터는 유지된다.
   const parsed = inboundSearchParamsSchema.safeParse({
     dateFrom: flat.dateFrom || undefined,
     dateTo: flat.dateTo || undefined,
     dateField: flat.dateField || undefined,
     wmsLinkId: flat.wmsLinkId || undefined,
     status: flat.status || undefined,
-    clientId: flat.clientId || undefined,
-    country: flat.country || undefined,
     keyword: flat.keyword || undefined,
     sort: flat.sort || undefined,
     order: flat.order || undefined,
@@ -66,8 +66,9 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
     getWmsLinks({ pageSize: 100 }),
   ]);
 
+  // 필터 옵션 value = 입고 행이 참조하는 수치 ID(idx) — Req의 wmsLinkId(int)와 1:1.
   const wmsLinkOptions: SelectOption[] = wmsLinksResult.items.map((link) => ({
-    value: link.id,
+    value: String(link.idx),
     label: link.name,
   }));
 
@@ -84,11 +85,9 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
       />
 
       {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.
-       * SearchPanel은 옵션을 넘긴 필터만 렌더링한다 — 클라이언트·국가 옵션은 지금 넘기지 않는다.
-       * PRD F013은 운영자에게 이 두 필터를 요구하지만, 실제 필터 파라미터를 Swagger로 맞출 때
-       * 6개 목록 화면 전체에 대해 함께 결정하기로 보류했다(CLAUDE.md 「미확정(TBD)」 참조).
-       * 노출로 정해지면 여기서 clientOptions·countryOptions만 넘기면 된다 — 필터링·스키마·
-       * SearchPanel 렌더는 이미 구현되어 있다. 서버 스코핑은 그대로 lib/data가 담당한다. */}
+       * 입고 목록 Req(Swagger 확정)에 클라이언트·국가 파라미터가 없으므로 두 필터는 노출하지
+       * 않는 것으로 확정 — 다른 목록 화면은 각자 Swagger 확인 시 결정한다(CLAUDE.md TBD).
+       * CLIENT 데이터 격리는 그대로 서버 스코핑(lib/data → Phase 2 API)이 담당한다. */}
       <SearchPanel
         basePath="/inbound"
         role={session.role}
@@ -96,7 +95,7 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
         dateFieldOptions={DATE_FIELD_OPTIONS}
         statusOptions={STATUS_OPTIONS}
         statusLabel="입고상태"
-        keywordPlaceholder="주문번호 · 접수번호 · SKU 검색"
+        keywordPlaceholder="접수번호 · SKU · 상품명 검색"
         defaultValues={params}
         className="shrink-0"
       />

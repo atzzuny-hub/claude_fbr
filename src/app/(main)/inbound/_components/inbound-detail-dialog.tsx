@@ -12,17 +12,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusStepper, type StatusStep } from "@/components/common/status-stepper";
-import { formatDateTime } from "@/lib/utils/datetime";
-import { INBOUND_STATUS_FLOW, INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
+import { formatEpochDateTime } from "@/lib/utils/datetime";
+import { INBOUND_STATUS_FLOW, INBOUND_STATUS_LABEL, type Inbound } from "@/types";
 
-/** 각 진행 단계에 해당하는 시점 이름 — 목록의 날짜 컬럼(입고접수일·창고도착일·입고 완료일)과 1:1 */
-// const STEP_MILESTONE: Record<(typeof INBOUND_STATUS_FLOW)[number], string> = {
-//   SCHEDULED: "입고 접수",
-//   WAITING: "창고 도착",
-//   RECEIVED: "입고 완료",
-// };
-
-/** 값이 없는 항목(아직 도착/완료 전)은 대시로 표시한다 */
+/** 값이 없는 항목(아직 일어나지 않은 단계·nullable 필드)은 대시로 표시한다 */
 const EMPTY = "—";
 
 interface InboundDetailDialogProps {
@@ -34,11 +27,9 @@ interface InboundDetailDialogProps {
 
 export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDialogProps) {
   // 진행 3단계(예정 → 대기 → 입고). 취소는 파이프라인 밖 종료 상태라 붉은 X 단일 노드로만 표시한다.
-  const steps: StatusStep[] = INBOUND_STATUS_FLOW.map((status, index) => ({
+  const steps: StatusStep[] = INBOUND_STATUS_FLOW.map((status) => ({
     key: status,
     label: INBOUND_STATUS_LABEL[status],
-    // caption: `STEP ${index + 1}`,
-    // description: STEP_MILESTONE[status],
   }));
 
   return (
@@ -47,50 +38,67 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
         <DialogHeader>
           <DialogTitle>입고 상세</DialogTitle>
           {row && (
-            <span className="font-mono text-sm text-muted-foreground">{row.receiptNo}</span>
+            <span className="font-mono text-sm text-muted-foreground">{row.ganNo ?? row.dataId}</span>
           )}
         </DialogHeader>
 
         {row && (
           <div className="flex flex-col gap-6 px-6 py-6">
-            <StatusStepper
-              steps={steps}
-              currentKey={row.status}
-              terminal={
-                row.status === "CANCELLED" ? { label: INBOUND_STATUS_LABEL.CANCELLED } : undefined
-              }
-              className="px-2"
-            />
+            {/* UNKNOW(원본 코드 매핑 실패)는 파이프라인 위치를 알 수 없어 스테퍼를 그리지 않는다 —
+             * 아래 입고상태 필드가 "알 수 없음"과 원본 코드를 함께 보여 준다. */}
+            {row.status !== "UNKNOW" && (
+              <StatusStepper
+                steps={steps}
+                currentKey={row.status}
+                terminal={
+                  row.status === "CANCELED" ? { label: INBOUND_STATUS_LABEL.CANCELED } : undefined
+                }
+                className="px-2"
+              />
+            )}
 
             {/* 좁은 화면에서는 한 열, 넓어지면 세 열로 — 라벨 위, 값 아래(읽기 전용) */}
             <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-              <DetailField label="주문번호" value={row.orderNo} mono />
+              <DetailField label="접수번호" value={row.ganNo ?? EMPTY} mono />
+              <DetailField label="클라이언트" value={row.clntName ?? EMPTY} />
               <DetailField label="WMS LINK" value={row.wmsLinkName} />
-              <DetailField label="입고상태" value={INBOUND_STATUS_LABEL[row.status as InboundStatus]} />
-              <DetailField label="접수번호" value={row.receiptNo} mono />
-              <DetailField label="고객명" value={row.customerName} />
-              <DetailField label="고객연락처" value={row.customerContact} mono />
-              <DetailField label="입고접수일" value={formatDateTime(row.receiptDate, EMPTY)} mono />
-              <DetailField label="창고도착일" value={formatDateTime(row.arrivalDate, EMPTY)} mono />
-              <DetailField label="입고 완료일" value={formatDateTime(row.completedDate, EMPTY)} mono />
+              <DetailField
+                label="입고상태"
+                // 원본 코드가 있으면 함께 보여 준다 — 특히 UNKNOW는 원문이 유일한 단서다.
+                value={
+                  row.statusOriginalCode
+                    ? `${INBOUND_STATUS_LABEL[row.status]} (${row.statusOriginalCode})`
+                    : INBOUND_STATUS_LABEL[row.status]
+                }
+              />
+              <DetailField label="고객명" value={row.contactName ?? EMPTY} />
+              <DetailField label="고객연락처" value={row.contactTel ?? EMPTY} mono />
+              <DetailField label="입고접수일" value={formatEpochDateTime(row.reqDt, EMPTY)} mono />
+              <DetailField label="배송일" value={formatEpochDateTime(row.sipDt, EMPTY)} mono />
+              <DetailField label="도착예정일" value={formatEpochDateTime(row.etaDt, EMPTY)} mono />
+              <DetailField label="창고도착일" value={formatEpochDateTime(row.arvDt, EMPTY)} mono />
+              <DetailField label="입고 ID" value={row.dataId} mono />
+              <DetailField label="정보 변경일" value={formatEpochDateTime(row.updDt, EMPTY)} mono />
             </dl>
 
             <section className="flex flex-col gap-2">
-              <h3 className="text-xs text-tertiary-foreground">제품리스트 ({row.lines.length})</h3>
+              <h3 className="text-xs text-tertiary-foreground">
+                제품리스트 ({row.prodList.length}) · 전체 {row.prodQty.toLocaleString()}개
+              </h3>
               <div className="overflow-hidden rounded-lg border border-border">
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-border bg-row-alt text-xs text-tertiary-foreground">
                       <th className="px-4 py-2 text-left font-medium">상품명</th>
-                      <th className="px-4 py-2 text-right font-medium">수량</th>
+                      <th className="px-4 py-2 text-right font-medium">접수 수량</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {row.lines.map((line) => (
-                      <tr key={line.id} className="border-b border-border/60 last:border-0">
-                        <td className="px-4 py-2.5 text-left">{line.productName}</td>
+                    {row.prodList.map((prod, index) => (
+                      <tr key={`${prod.sku}-${index}`} className="border-b border-border/60 last:border-0">
+                        <td className="px-4 py-2.5 text-left">{prod.productName}</td>
                         <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-                          {line.totalQuantity.toLocaleString()}
+                          {prod.expQty.toLocaleString()}
                         </td>
                       </tr>
                     ))}

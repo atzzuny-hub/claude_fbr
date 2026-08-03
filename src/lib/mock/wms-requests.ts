@@ -8,16 +8,17 @@ import { pad, pickDate, toDatetime } from "./seed-helpers";
  * WmsRequest(NEW 요청) 목데이터 — Client 다음, Inbound 이후에 정의.
  * PRODUCT_REGISTRATION 유형이면서 REGISTERED 상태인 요청은, PRD 사용자 여정(3→4단계)의
  * "등록 완료 후 입고현황에 예정으로 반영" 흐름을 보여주기 위해 같은 클라이언트의
- * SCHEDULED(예정) 입고 건을 relatedInboundId로 연결한다(클라이언트별 1회씩 소진).
+ * PLAN(예정) 입고 건을 relatedInboundId로 연결한다(클라이언트별 1회씩 소진).
  */
 
-// 클라이언트별 SCHEDULED 입고 id 큐 — 매칭되는 REGISTERED 요청에 1건씩 연결
+// 클라이언트별 예정(PLAN) 입고 idx 큐 — 매칭되는 REGISTERED 요청에 1건씩 연결.
+// 입고 행에는 클라이언트 ID가 없어(Swagger 확정 스키마) 클라이언트 이름(clntName)으로 잇는다.
 const scheduledInboundQueueByClient = new Map<string, string[]>();
 for (const inbound of mockInbounds) {
-  if (inbound.status !== "SCHEDULED") continue;
-  const queue = scheduledInboundQueueByClient.get(inbound.clientId) ?? [];
-  queue.push(inbound.id);
-  scheduledInboundQueueByClient.set(inbound.clientId, queue);
+  if (inbound.status !== "PLAN" || !inbound.clntName) continue;
+  const queue = scheduledInboundQueueByClient.get(inbound.clntName) ?? [];
+  queue.push(String(inbound.idx));
+  scheduledInboundQueueByClient.set(inbound.clntName, queue);
 }
 
 // 길이를 홀수(7)로 두는 이유는 lib/mock/inbounds.ts 상단 주석 참고.
@@ -49,7 +50,7 @@ export const mockWmsRequests: WmsRequest[] = Array.from({ length: TOTAL_REQUESTS
 
   let relatedInboundId: string | null = null;
   if (type === "PRODUCT_REGISTRATION" && status === "REGISTERED") {
-    const queue = scheduledInboundQueueByClient.get(client.id);
+    const queue = scheduledInboundQueueByClient.get(client.name);
     if (queue && queue.length > 0) {
       relatedInboundId = queue.shift() ?? null;
     }

@@ -1,12 +1,14 @@
 import { getClients, getInbounds, getSession, getWmsLinks } from "@/lib/data";
 import {
   CLIENT_STATUS_LABEL,
+  INBOUND_DATE_FIELD,
+  INBOUND_DATE_FIELD_LABEL,
   INBOUND_STATUS,
+  INBOUND_STATUS_FILTER,
   INBOUND_STATUS_FLOW,
   INBOUND_STATUS_LABEL,
   WMS_REQUEST_STATUS,
   WMS_REQUEST_STATUS_LABEL,
-  type Country,
   type InboundSearchParams,
   type InboundStatus,
 } from "@/types";
@@ -18,23 +20,24 @@ import { StatusStepper } from "@/components/common/status-stepper";
 import { DemoInboundTable } from "./demo-inbound-table";
 import { DemoInboundDownloadButton } from "./demo-inbound-download-button";
 
-const DATE_FIELD_OPTIONS: SelectOption[] = [
-  { value: "receiptDate", label: "입고접수일" },
-  { value: "arrivalDate", label: "창고도착일" },
-  { value: "completedDate", label: "입고 완료일" },
-  { value: "createdAt", label: "등록일" },
-];
+// 기준일자 = 입고 목록 Req의 searchDt 코드(Swagger 확정 스키마와 1:1)
+const DATE_FIELD_OPTIONS: SelectOption[] = INBOUND_DATE_FIELD.map((field) => ({
+  value: field,
+  label: INBOUND_DATE_FIELD_LABEL[field],
+}));
 
-const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS.map((status) => ({
+// 상태 필터 = Req의 status enum(UNKNOW는 응답 전용이라 제외)
+const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS_FILTER.map((status) => ({
   value: status,
   label: INBOUND_STATUS_LABEL[status],
 }));
 
-const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive"> = {
-  SCHEDULED: "info",
-  WAITING: "warning",
-  RECEIVED: "success",
-  CANCELLED: "destructive",
+const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive" | "neutral"> = {
+  PLAN: "info",
+  STANDBY: "warning",
+  COMPLETED: "success",
+  CANCELED: "destructive",
+  UNKNOW: "neutral",
 };
 
 interface DevComponentsPageProps {
@@ -59,12 +62,10 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
   const params: InboundSearchParams = {
     dateFrom: flat.dateFrom,
     dateTo: flat.dateTo,
-    dateField: flat.dateField,
-    wmsLinkId: flat.wmsLinkId,
     // 실 화면에서는 zod로 런타임 검증 후 좁히는 것을 권장 — 데모 페이지는 단순 캐스팅으로 축약.
-    status: flat.status as InboundStatus | undefined,
-    clientId: flat.clientId,
-    country: flat.country as Country | undefined,
+    dateField: flat.dateField as InboundSearchParams["dateField"],
+    wmsLinkId: flat.wmsLinkId,
+    status: flat.status as InboundSearchParams["status"],
     keyword: flat.keyword,
     page,
     pageSize,
@@ -77,14 +78,18 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
     getClients({ pageSize: 200 }),
   ]);
 
+  // 필터 옵션 value = 입고 행이 참조하는 수치 ID(idx) — 실제 화면(/inbound)과 같은 기준.
   const wmsLinkOptions: SelectOption[] = wmsLinksResult.items.map((link) => ({
-    value: link.id,
+    value: String(link.idx),
     label: link.name,
   }));
+  // 클라이언트 select는 SearchPanel의 계층 필터(WMS → 클라이언트 좁히기) UI 데모용 —
+  // 입고 목록 Req에는 클라이언트 파라미터가 없어 실제 조회에는 쓰이지 않는다.
+  const wmsIdxById = new Map(wmsLinksResult.items.map((link) => [link.id, String(link.idx)]));
   const clientOptions: ClientFilterOption[] = clientsResult.items.map((client) => ({
     value: client.id,
     label: client.name,
-    wmsLinkId: client.wmsLinkId,
+    wmsLinkId: wmsIdxById.get(client.wmsLinkId) ?? client.wmsLinkId,
   }));
 
   return (
@@ -145,7 +150,7 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
             </p>
             <StatusStepper
               steps={INBOUND_STATUS_FLOW.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
-              currentKey="WAITING"
+              currentKey="STANDBY"
             />
           </div>
           <div className="rounded-2xl bg-card p-4 shadow-[0_8px_24px_rgba(30,20,80,0.06)]">
@@ -154,8 +159,8 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
             </p>
             <StatusStepper
               steps={INBOUND_STATUS_FLOW.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
-              currentKey="CANCELLED"
-              terminal={{ label: INBOUND_STATUS_LABEL.CANCELLED }}
+              currentKey="CANCELED"
+              terminal={{ label: INBOUND_STATUS_LABEL.CANCELED }}
             />
           </div>
           <div className="rounded-2xl bg-card p-4 shadow-[0_8px_24px_rgba(30,20,80,0.06)]">

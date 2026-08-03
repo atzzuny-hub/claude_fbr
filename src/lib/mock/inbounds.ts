@@ -1,149 +1,146 @@
-import type { Inbound, InboundStatus } from "@/types";
-import { INBOUND_STATUS } from "@/types";
+import type { Inbound, InboundSku, InboundStatus } from "@/types";
 import { mockClients } from "./clients";
-import { mockSkus } from "./skus";
-import { addDays, compactDate, pad, pickDate, toDatetime } from "./seed-helpers";
+import { mockWmsLinks } from "./wms-links";
+import { addDays, compactDate, pad, pickDate, toEpoch } from "./seed-helpers";
 
 /**
- * Inbound 목데이터 — Client/Sku 다음으로 정의(참조 무결성 순서).
- * 64건, 20개 클라이언트를 순환하며 각 클라이언트 소유 SKU만 참조한다.
- * 상태는 (인덱스+클라이언트인덱스) 기반 8단계 순환으로 예정/대기/입고를 골고루 섞어
- * 클라이언트별로도 서로 다른 상태 조합이 나오게 한다.
+ * Inbound 목데이터 — 입고 목록 API 응답 스키마(Swagger 확정)를 그대로 따른다.
+ * 64건, 20개 클라이언트를 순환. 날짜류는 전부 UTC epoch 밀리초(toEpoch).
+ * 상태는 (인덱스+클라이언트인덱스) 기반 9칸 순환으로 예정/대기/입고/취소를 골고루 섞고,
+ * 원본 코드 매핑 실패 케이스(UNKNOW)도 소수 포함해 화면의 예외 표현을 확인할 수 있게 한다.
  */
 
-const skusByClient = new Map<string, typeof mockSkus>();
-for (const sku of mockSkus) {
-  const list = skusByClient.get(sku.clientId) ?? [];
-  list.push(sku);
-  skusByClient.set(sku.clientId, list);
-}
-
-// RECEIVED 비중이 가장 높고 WAITING/SCHEDULED가 섞이며 CANCELLED(취소)도 일부 나오도록 설계한 9칸 순환表.
+// COMPLETED 비중이 가장 높고 STANDBY/PLAN이 섞이며 CANCELED(취소)·UNKNOW(매핑 실패)도 일부.
 // 길이를 홀수로 둔 것은 의도적 설계: clientIndex(= i % 20, 20은 짝수)와 i를 더한
-// 값은 항상 짝수가 되므로, 순환 길이가 짝수면 홀수 인덱스(SCHEDULED 등)가 영영
-// 선택되지 않는 대칭성 버그가 생긴다. 길이를 2와 서로소인 홀수(9)로 두면
-// "짝수만 나오는 값 mod 홀수"가 전체 나머지를 모두 순회하게 되어 이 문제가 사라진다.
+// 값은 항상 짝수가 되므로, 순환 길이가 짝수면 홀수 인덱스가 영영 선택되지 않는
+// 대칭성 버그가 생긴다. 길이를 2와 서로소인 홀수(9)로 두면 전체 나머지를 모두 순회한다.
 const STATUS_CYCLE: InboundStatus[] = [
-  "RECEIVED",
-  "WAITING",
-  "SCHEDULED",
-  "RECEIVED",
-  "CANCELLED",
-  "WAITING",
-  "RECEIVED",
-  "SCHEDULED",
-  "CANCELLED",
+  "COMPLETED",
+  "STANDBY",
+  "PLAN",
+  "COMPLETED",
+  "CANCELED",
+  "STANDBY",
+  "COMPLETED",
+  "PLAN",
+  "UNKNOW",
 ];
-void INBOUND_STATUS; // 상태값 출처 문서화용 참조
 
 const TOTAL_INBOUNDS = 64;
 
-// 단계별 시각 풀 — 접수는 업무시간, 도착은 이른 아침~저녁 하차, 완료는 그보다 늦은 시간대로
+// 단계별 시각 풀 — 접수는 업무시간, 배송/도착은 이른 아침~저녁 하차 시간대로
 // 서로 다른 길이(홀수/짝수 섞음)를 줘서 행마다 같은 조합이 반복되지 않게 한다.
-// 세 단계는 항상 서로 다른 날이므로(도착 = 접수+2~4일, 완료 = 도착+1~2일) 시각끼리의 선후는 무관하다.
-const RECEIPT_TIMES = ["09:15:00", "10:40:00", "11:05:00", "13:20:00", "14:50:00"];
-const ARRIVAL_TIMES = ["07:30:00", "08:45:00", "10:10:00", "13:05:00", "15:40:00", "18:25:00"];
-const COMPLETED_TIMES = ["11:00:00", "12:35:00", "14:15:00", "16:05:00", "17:45:00"];
+const REQ_TIMES = ["09:15:00", "10:40:00", "11:05:00", "13:20:00", "14:50:00"];
+const SIP_TIMES = ["08:20:00", "11:30:00", "16:10:00", "18:40:00"];
+const ARV_TIMES = ["07:30:00", "08:45:00", "10:10:00", "13:05:00", "15:40:00", "18:25:00"];
 
-// 입고 상품 라인용 상품 카탈로그(영문/한글 표기 쌍). 길이 8 — 행마다 1~3개 라인을 여기서 순환 선택.
-const LINE_TEMPLATES: { skuCode: string; productName: string; productNameKo: string; unit: string }[] = [
-  { skuCode: "BJ-TONER-500", productName: "Glow Toner 500ml", productNameKo: "글로우 토너 500ml", unit: "EA" },
-  { skuCode: "BJ-SERUM-050", productName: "Vita Serum 50ml", productNameKo: "비타 세럼 50ml", unit: "EA" },
-  { skuCode: "BJ-CREAM-100", productName: "Moisture Cream 100ml", productNameKo: "수분 크림 100ml", unit: "EA" },
-  { skuCode: "BJ-CLEANSER-150", productName: "Mild Cleanser 150ml", productNameKo: "약산성 클렌저 150ml", unit: "EA" },
-  { skuCode: "BJ-SUN-050", productName: "UV Sun Cream 50ml", productNameKo: "UV 선크림 50ml", unit: "EA" },
-  { skuCode: "BJ-MASK-10", productName: "Soothing Mask 10P", productNameKo: "수딩 마스크팩 10매", unit: "SET" },
-  { skuCode: "BJ-AMPOULE-030", productName: "Repair Ampoule 30ml", productNameKo: "리페어 앰플 30ml", unit: "EA" },
-  { skuCode: "BJ-LOTION-200", productName: "Daily Lotion 200ml", productNameKo: "데일리 로션 200ml", unit: "EA" },
+// 제품 목록(SKU LIST)용 카탈로그. 길이 8 — 행마다 1~3개 라인을 여기서 순환 선택.
+// 단위는 Swagger 예시(Pcs)를 기본으로 하고 세트 상품만 Set.
+const PROD_TEMPLATES: { sku: string; productName: string; unit: string }[] = [
+  { sku: "BJ-TONER-500", productName: "Glow Toner 500ml", unit: "Pcs" },
+  { sku: "BJ-SERUM-050", productName: "Vita Serum 50ml", unit: "Pcs" },
+  { sku: "BJ-CREAM-100", productName: "Moisture Cream 100ml", unit: "Pcs" },
+  { sku: "BJ-CLEANSER-150", productName: "Mild Cleanser 150ml", unit: "Pcs" },
+  { sku: "BJ-SUN-050", productName: "UV Sun Cream 50ml", unit: "Pcs" },
+  { sku: "BJ-MASK-10", productName: "Soothing Mask 10P", unit: "Set" },
+  { sku: "BJ-AMPOULE-030", productName: "Repair Ampoule 30ml", unit: "Pcs" },
+  { sku: "BJ-LOTION-200", productName: "Daily Lotion 200ml", unit: "Pcs" },
 ];
 
 // 입고 요청 고객명 풀(길이 12, 순환). 클라이언트(마켓)와 별개의 담당 고객.
-const CUSTOMER_NAMES = [
+const CONTACT_NAMES = [
   "김서연", "이준호", "박민지", "최우진", "정하윤", "강도현",
   "윤서아", "임지후", "한예린", "오세훈", "서지우", "문가은",
 ];
 
+// 접수번호(ganNo)는 마켓주문번호 — 동남아 마켓 접두어를 순환해 마켓별 번호처럼 보이게 한다.
+const GAN_PREFIXES = ["SPE", "LZD", "TIK"];
+
+// 상태별 WMS 원본 코드 샘플 — statusOriginalCode는 대부분 null이고 일부 행에만 원문이 남는다.
+const ORIGINAL_CODES: Partial<Record<InboundStatus, string>> = {
+  PLAN: "INIT",
+  STANDBY: "IDLE",
+  COMPLETED: "DONE",
+  CANCELED: "CXL",
+};
+
 export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_, i) => {
   const clientIndex = i % mockClients.length;
   const client = mockClients[clientIndex];
-  const clientSkus = skusByClient.get(client.id) ?? [];
-  const sku = clientSkus[i % clientSkus.length];
+  // 응답의 wmsId/wmsLinkId는 수치 ID — 소속 WMS LINK의 idx에서 가져온다.
+  const wmsLink = mockWmsLinks.find((link) => link.id === client.wmsLinkId);
+  if (!wmsLink) throw new Error(`unknown wmsLinkId: ${client.wmsLinkId}`);
 
   const status = STATUS_CYCLE[(i + clientIndex) % STATUS_CYCLE.length];
 
-  // 날짜 계산은 순수 날짜(YYYY-MM-DD)로 하고, 필드에 담을 때만 시각을 붙인다 — addDays가
-  // 날짜 문자열을 전제로 하므로 중간 계산에 날짜시간을 섞지 않는다.
-  // 접수일을 날짜 풀보다 6일 앞으로 당겨 두면, 뒤에 더하는 도착(+2~4일)·완료(+1~2일)까지
-  // 모두 풀의 마지막 날짜(=기준일 2026-07-31) 안에 들어와 미래 날짜가 생기지 않는다.
-  const receiptDay = addDays(pickDate(i, 0), -6);
-  // 상태별 진행 단계: 예정=접수만, 대기=도착까지, 입고=완료까지.
-  // 취소(CANCELLED)는 종료 상태 — 접수 후 취소된 것으로 보아 도착/완료일 없이 접수일만 둔다.
-  const arrivalDay =
-    status === "SCHEDULED" || status === "CANCELLED" ? null : addDays(receiptDay, 2 + (i % 3));
-  const completedDay =
-    status === "RECEIVED" && arrivalDay ? addDays(arrivalDay, 1 + (i % 2)) : null;
+  // 날짜 계산은 순수 날짜(YYYY-MM-DD)로 하고, 필드에 담을 때만 epoch(ms)로 바꾼다.
+  // 접수일을 날짜 풀보다 6일 앞으로 당겨 두면 뒤에 더하는 배송(+1일)·도착예정(+3~5일)·
+  // 도착(예정±1일)까지 모두 풀의 마지막 날짜(기준일 2026-07-31) 안에 들어온다.
+  const reqDay = addDays(pickDate(i, 0), -6);
+  // 상태별 진행 단계 — 예정: 접수(+도착예정)만, 대기: 배송·도착까지, 입고: 대기와 동일
+  // (완료 시점 필드는 응답에 없다), 취소: 접수만, UNKNOW: 원본 코드 미매핑(접수만).
+  const sipDay = status === "STANDBY" || status === "COMPLETED" ? addDays(reqDay, 1) : null;
+  const etaDay = status === "CANCELED" || status === "UNKNOW" ? null : addDays(reqDay, 3 + (i % 3));
+  const arvDay =
+    (status === "STANDBY" || status === "COMPLETED") && etaDay ? addDays(etaDay, i % 2) : null;
 
-  const receiptDate = toDatetime(receiptDay, RECEIPT_TIMES[i % RECEIPT_TIMES.length]);
-  const arrivalDate = arrivalDay
-    ? toDatetime(arrivalDay, ARRIVAL_TIMES[i % ARRIVAL_TIMES.length])
-    : null;
-  const completedDate = completedDay
-    ? toDatetime(completedDay, COMPLETED_TIMES[i % COMPLETED_TIMES.length])
-    : null;
-  const receiptPrefix = i % 2 === 0 ? "IRSPG" : "IRADC";
-  const id = `inb-${pad(i + 1, 4)}`;
+  const reqDt = toEpoch(reqDay, REQ_TIMES[i % REQ_TIMES.length]);
+  const sipDt = sipDay ? toEpoch(sipDay, SIP_TIMES[i % SIP_TIMES.length]) : null;
+  const etaDt = etaDay ? toEpoch(etaDay, "00:00:00") : null; // 도착"예정"일은 시각 없이 자정 기준
+  const arvDt = arvDay ? toEpoch(arvDay, ARV_TIMES[i % ARV_TIMES.length]) : null;
 
-  // 상품 라인 1~3개 — 템플릿을 순환 선택하고 수량은 산술로 계산(실행마다 동일).
-  const lineCount = 1 + (i % 3);
-  const lines = Array.from({ length: lineCount }, (_, j) => {
-    const template = LINE_TEMPLATES[(i + j * 3) % LINE_TEMPLATES.length];
-    const totalQuantity = (3 + ((i * 2 + j * 5) % 16)) * 100; // 300~1800, 100단위
-    // 오류수량은 대부분 미확인(null → "—"), 일부만 소량 발생.
-    const errorQuantity = (i + j) % 5 === 0 ? ((i % 3) + 1) * 2 : null;
-    // 사용가능수량은 입고 완료(RECEIVED)된 일부 라인에서만 채워지고, 그 외는 0.
-    const availableQuantity =
-      status === "RECEIVED" && (i + j) % 4 === 0 ? totalQuantity - (errorQuantity ?? 0) : 0;
-    return {
-      id: `${id}-l${j + 1}`,
-      skuCode: template.skuCode,
-      productName: template.productName,
-      productNameKo: template.productNameKo,
-      unit: template.unit,
-      totalQuantity,
-      availableQuantity,
-      errorQuantity,
-    };
+  const idx = i + 1;
+
+  // 제품 목록 1~3줄 — 템플릿을 순환 선택하고 수량은 산술로 계산(실행마다 동일).
+  const prodCount = 1 + (i % 3);
+  const prodList: InboundSku[] = Array.from({ length: prodCount }, (_, j) => {
+    const template = PROD_TEMPLATES[(i + j * 3) % PROD_TEMPLATES.length];
+    const expQty = (3 + ((i * 2 + j * 5) % 16)) * 100; // 300~1800, 100단위
+    // 오류 수량은 대부분 0이고 일부 라인에만 소량 발생.
+    const excQty = (i + j) % 5 === 0 ? ((i % 3) + 1) * 2 : 0;
+    // 사용 가능 수량은 검수가 끝난 입고 완료(COMPLETED) 라인에서만 확정, 그 외 0.
+    const qty = status === "COMPLETED" ? expQty - excQty : 0;
+    return { sku: template.sku, productName: template.productName, expQty, qty, excQty, unit: template.unit };
   });
-  // 총 입고수량 = 라인 합. 대표 SKU 코드/명은 첫 라인 상품으로 둔다(목록 검색·CSV 표기용).
-  const quantity = lines.reduce((sum, line) => sum + line.totalQuantity, 0);
+  const prodQty = prodList.reduce((sum, prod) => sum + prod.expQty, 0);
+
+  // 접수번호(마켓주문번호)는 nullable — 일부 행을 비워 "—" 표기를 확인할 수 있게 한다.
+  const ganNo =
+    i % 16 === 7
+      ? null
+      : `${GAN_PREFIXES[i % GAN_PREFIXES.length]}${compactDate(reqDay).slice(2)}${pad(idx, 4)}`;
+
+  // 마지막으로 일어난 단계의 시각 — WMS/FBR 변경일 계산에 쓴다.
+  const lastEventDt = arvDt ?? sipDt ?? null;
 
   const inbound: Inbound = {
-    id,
-    clientId: client.id,
-    clientName: client.name,
-    customerName: CUSTOMER_NAMES[i % CUSTOMER_NAMES.length],
-    // 연락처는 인덱스 기반 결정적 생성(+82 10-XXXX-XXXX 형식)
-    customerContact: `+82 10-${pad((i * 137 + 2000) % 10000, 4)}-${pad((i * 613 + 93) % 10000, 4)}`,
-    skuId: sku.id,
-    skuCode: lines[0].skuCode,
-    skuName: lines[0].productNameKo,
-    country: client.country,
-    wmsLinkId: client.wmsLinkId,
+    idx,
+    wmsId: wmsLink.idx, // WMS와 WMS LINK의 수치 ID 관계는 잠정 동일 번호(WMS Swagger 확정 전)
+    wmsLinkId: wmsLink.idx,
     wmsLinkName: client.wmsLinkName,
+    // 원본 코드는 일부 행에만 남기고, UNKNOW 행은 매핑 실패 원문을 그대로 노출한다.
+    statusOriginalCode:
+      status === "UNKNOW" ? `X-${pad((i * 7) % 100, 2)}` : i % 4 === 0 ? (ORIGINAL_CODES[status] ?? null) : null,
     status,
-    // 번호 형식은 잠정 — 주문번호(클라이언트 발주)와 접수번호(입고 접수 시 발급)를 한눈에
-    // 구분할 수 있게 접두어를 다르게 둔다
-    orderNo: `PO${compactDate(receiptDay).slice(2)}${pad(i + 1, 3)}`,
-    receiptNo: `${receiptPrefix}${compactDate(receiptDay)}${pad(i + 1, 3)}`,
-    quantity,
-    lines,
-    receiptDate,
-    arrivalDate,
-    completedDate,
-    // 등록은 접수보다 앞선 시각(접수 시각 풀의 최솟값 09:15보다 이르게 고정)
-    createdAt: toDatetime(receiptDay, "08:30:00"),
-    // 최근 수정 = 마지막으로 일어난 단계의 시각
-    updatedAt: completedDate ?? arrivalDate ?? receiptDate,
+    ganNo,
+    clntName: client.name,
+    cntyCd: client.country,
+    reqDt,
+    sipDt,
+    etaDt,
+    arvDt,
+    prodList,
+    prodQty,
+    // 고객명/연락처는 nullable — 일부 행을 비워 상세의 "—" 표기를 확인한다.
+    contactName: i % 13 === 5 ? null : CONTACT_NAMES[i % CONTACT_NAMES.length],
+    contactTel:
+      i % 11 === 7 ? null : `+82 10-${pad((i * 137 + 2000) % 10000, 4)}-${pad((i * 613 + 93) % 10000, 4)}`,
+    dataId: `WMS${pad(wmsLink.idx, 2)}-IN-${pad(idx, 5)}`,
+    // WMS 쪽 생성/변경 → FBR 수집(등록)이 뒤따르는 시간 순서로 배치한다.
+    dataRegDt: toEpoch(reqDay, "08:30:00"),
+    dataUpdDt: lastEventDt,
+    regDt: toEpoch(reqDay, "08:45:00"),
+    updDt: lastEventDt,
   };
   return inbound;
 });

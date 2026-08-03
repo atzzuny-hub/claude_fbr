@@ -26,8 +26,11 @@ export async function getWmsLink(id: string): Promise<WmsLink | null> {
 
 export async function createWmsLink(input: WmsLinkInput): Promise<WmsLink> {
   await delay();
+  // 수치 ID(idx)는 실제로는 서버가 발급 — 목에서는 현재 최댓값 + 1로 흉내 낸다.
+  const nextIdx = wmsLinks.reduce((max, link) => Math.max(max, link.idx), 0) + 1;
   const newLink: WmsLink = {
-    id: `wms-${wmsLinks.length + 1}`,
+    id: `wms-${nextIdx}`,
+    idx: nextIdx,
     name: input.name,
     country: input.country,
     syncStatus: input.syncStatus ?? "PENDING",

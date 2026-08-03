@@ -7,6 +7,7 @@ import type { WmsLink } from "@/types";
 export const mockWmsLinks: WmsLink[] = [
   {
     id: "wms-1",
+    idx: 1,
     name: "REVE VN (FEI)",
     country: "VN",
     syncStatus: "CONNECTED",
@@ -15,6 +16,7 @@ export const mockWmsLinks: WmsLink[] = [
   },
   {
     id: "wms-2",
+    idx: 2,
     name: "PH Pharma Research",
     country: "PH",
     syncStatus: "CONNECTED",
@@ -23,6 +25,7 @@ export const mockWmsLinks: WmsLink[] = [
   },
   {
     id: "wms-3",
+    idx: 3,
     name: "MY Pharma Research",
     country: "MY",
     syncStatus: "CONNECTED",
@@ -31,6 +34,7 @@ export const mockWmsLinks: WmsLink[] = [
   },
   {
     id: "wms-4",
+    idx: 4,
     name: "PH Torriden (SHP)",
     country: "PH",
     syncStatus: "PENDING",
@@ -39,6 +43,7 @@ export const mockWmsLinks: WmsLink[] = [
   },
   {
     id: "wms-5",
+    idx: 5,
     name: "REVE MY (WLH)",
     country: "MY",
     syncStatus: "CONNECTED",
@@ -47,6 +52,7 @@ export const mockWmsLinks: WmsLink[] = [
   },
   {
     id: "wms-6",
+    idx: 6,
     name: "VN Cosmetics Hub (DHL)",
     country: "VN",
     syncStatus: "DISCONNECTED",

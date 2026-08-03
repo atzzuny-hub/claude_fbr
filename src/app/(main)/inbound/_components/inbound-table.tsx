@@ -17,14 +17,21 @@ import { InboundDetailDialog } from "./inbound-detail-dialog";
 
 /**
  * StatusBadge tone 매핑 — 예정(info)→대기(warning)→입고(success), StatusBadge 권장 매핑을 따른다.
- * 취소는 파이프라인 밖 종료 상태라 붉은 톤(destructive)으로 표시한다.
+ * 취소는 파이프라인 밖 종료 상태라 붉은 톤(destructive), 알 수 없음(UNKNOW — 원본 코드 매핑
+ * 실패)은 중립 톤으로 조용히 표시한다.
  */
-const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive"> = {
-  SCHEDULED: "info",
-  WAITING: "warning",
-  RECEIVED: "success",
-  CANCELLED: "destructive",
+const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive" | "neutral"> = {
+  PLAN: "info",
+  STANDBY: "warning",
+  COMPLETED: "success",
+  CANCELED: "destructive",
+  UNKNOW: "neutral",
 };
+
+/** 접수번호 등 nullable 문자열 셀 — 값이 없으면 조용한 대시로 표시한다 */
+function nullableCell(value: string | null) {
+  return value ?? <span className="text-tertiary-foreground">—</span>;
+}
 
 interface InboundTableProps {
   data: Inbound[];
@@ -62,15 +69,10 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
   const sort = currentQuery.sort || undefined;
   const order = currentQuery.order === "desc" ? "desc" : currentQuery.order === "asc" ? "asc" : undefined;
 
-  // 컬럼 구성은 사용자 확정 8개. 여기서 빠진 클라이언트·SKU·수량은 행 확장(+) 상세로 옮겼다.
+  // 컬럼 8개 — Swagger 응답 필드 기준(접수번호=ganNo 하나로 통합, 날짜는 응답의 4종).
+  // 여기서 빠진 클라이언트·제품·수량은 행 확장(+) 상세와 CSV로 옮겼다.
   const columns: DataTableColumn<Inbound>[] = [
-    { key: "orderNo", header: "주문번호", cell: (row) => row.orderNo, cellClassName: "font-mono" },
-    {
-      key: "receiptNo",
-      header: "접수번호",
-      cell: (row) => row.receiptNo,
-      cellClassName: "font-mono",
-    },
+    { key: "ganNo", header: "접수번호", cell: (row) => nullableCell(row.ganNo), cellClassName: "font-mono" },
     {
       key: "status",
       header: "입고상태",
@@ -78,17 +80,14 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
         <StatusBadge label={INBOUND_STATUS_LABEL[row.status]} tone={INBOUND_STATUS_TONE[row.status]} />
       ),
     },
-    { key: "country", header: "국가", cell: (row) => <CountryCell country={row.country} /> },
+    { key: "country", header: "국가", cell: (row) => <CountryCell country={row.cntyCd} /> },
     { key: "wmsLink", header: "WMS LINK", cell: (row) => row.wmsLinkName },
-    // 세 날짜는 시각까지 표시한다(DateTimeCell: 날짜 위 · 시각 아래).
-    // 아직 도착/완료 전인 행은 값이 없어 "-"만 나온다.
-    { key: "receiptDate", header: "입고접수일", cell: (row) => <DateTimeCell value={row.receiptDate} /> },
-    { key: "arrivalDate", header: "창고도착일", cell: (row) => <DateTimeCell value={row.arrivalDate} /> },
-    {
-      key: "completedDate",
-      header: "입고 완료일",
-      cell: (row) => <DateTimeCell value={row.completedDate} />,
-    },
+    // 네 날짜는 시각까지 표시한다(DateTimeCell: 날짜 위 · 시각 아래, epoch ms → UTC 표기).
+    // 아직 일어나지 않은 단계(미배송/미도착)는 값이 없어 "-"만 나온다.
+    { key: "reqDt", header: "입고접수일", cell: (row) => <DateTimeCell value={row.reqDt} /> },
+    { key: "sipDt", header: "배송일", cell: (row) => <DateTimeCell value={row.sipDt} /> },
+    { key: "etaDt", header: "도착예정일", cell: (row) => <DateTimeCell value={row.etaDt} /> },
+    { key: "arvDt", header: "창고도착일", cell: (row) => <DateTimeCell value={row.arvDt} /> },
   ];
 
   return (
@@ -106,7 +105,7 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
         toolbarActions={toolbarActions}
         columns={columns}
         data={data}
-        getRowId={(row) => row.id}
+        getRowId={(row) => String(row.idx)}
         total={total}
         page={page}
         pageSize={pageSize}
@@ -135,7 +134,7 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
             size="icon-xs"
             aria-label="이 행 다운로드"
             onClick={() =>
-              exportRowsToCsv([row], INBOUND_CSV_COLUMNS, `inbound-${row.receiptNo}`)
+              exportRowsToCsv([row], INBOUND_CSV_COLUMNS, `inbound-${row.ganNo ?? row.idx}`)
             }
           >
             <Download />
@@ -154,63 +153,68 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
 }
 
 /**
- * 행 확장(+) 상세 — 고객명·연락처와 입고 상품 리스트(합계 포함).
+ * 행 확장(+) 상세 — 클라이언트·고객명·연락처와 제품 목록(SKU LIST, 합계 포함).
+ * 수량 3종은 Swagger 의미 그대로: expQty(접수) ⊇ qty(사용 가능) + excQty(오류).
  * 넓은 표는 자체 컨테이너에서 가로 스크롤한다(페이지 본문은 가로로 넘치지 않게).
  */
 function InboundDetail({ row }: { row: Inbound }) {
-  const totalQuantity = row.lines.reduce((sum, line) => sum + line.totalQuantity, 0);
-  const totalAvailable = row.lines.reduce((sum, line) => sum + line.availableQuantity, 0);
-  const totalError = row.lines.reduce((sum, line) => sum + (line.errorQuantity ?? 0), 0);
-  const hasAnyError = row.lines.some((line) => line.errorQuantity != null);
+  const totalAvailable = row.prodList.reduce((sum, prod) => sum + prod.qty, 0);
+  const totalError = row.prodList.reduce((sum, prod) => sum + prod.excQty, 0);
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 고객명 · 연락처 */}
+      {/* 클라이언트 · 고객명 · 연락처 — nullable 필드는 대시로 */}
       <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-xs">
         <span className="flex items-center gap-2">
+          <span className="text-muted-foreground">클라이언트</span>
+          <span className="font-medium text-foreground">{row.clntName ?? "—"}</span>
+        </span>
+        <span className="flex items-center gap-2">
           <span className="text-muted-foreground">고객명</span>
-          <span className="font-medium text-foreground">{row.customerName}</span>
+          <span className="font-medium text-foreground">{row.contactName ?? "—"}</span>
         </span>
         <span className="flex items-center gap-2">
           <span className="text-muted-foreground">연락처</span>
-          <span className="font-medium tabular-nums text-foreground">{row.customerContact}</span>
+          <span className="font-medium tabular-nums text-foreground">{row.contactTel ?? "—"}</span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground">입고 ID</span>
+          <span className="font-mono font-medium text-foreground">{row.dataId}</span>
         </span>
       </div>
 
-      {/* 상품 리스트 */}
+      {/* 제품 목록(SKU LIST) */}
       <div className="flex flex-col gap-2">
         <div className="text-xs text-tertiary-foreground">
-          상품 리스트 ({row.lines.length}) · {row.lines.length}종 {totalQuantity.toLocaleString()}개
+          제품 목록 ({row.prodList.length}종) · 전체 {row.prodQty.toLocaleString()}개
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-160 border-collapse text-xs">
             <thead>
               <tr className="border-b border-border text-tertiary-foreground">
                 <DetailTh>SKU</DetailTh>
-                <DetailTh className="text-right">입고 전체수량</DetailTh>
+                <DetailTh className="text-right">접수 수량</DetailTh>
                 <DetailTh className="text-right">사용가능수량</DetailTh>
                 <DetailTh className="text-right">오류수량</DetailTh>
                 <DetailTh>단위</DetailTh>
                 <DetailTh>상품명</DetailTh>
-                <DetailTh>상품명(한글)</DetailTh>
               </tr>
             </thead>
             <tbody>
-              {row.lines.map((line) => (
-                <tr key={line.id} className="border-b border-border/60">
-                  <DetailTd className="font-mono">{line.skuCode}</DetailTd>
+              {row.prodList.map((prod, index) => (
+                <tr key={`${prod.sku}-${index}`} className="border-b border-border/60">
+                  <DetailTd className="font-mono">{prod.sku}</DetailTd>
                   <DetailTd className="text-right font-mono font-medium tabular-nums">
-                    {line.totalQuantity.toLocaleString()}
+                    {prod.expQty.toLocaleString()}
                   </DetailTd>
                   <DetailTd className="text-right font-mono tabular-nums">
-                    {line.availableQuantity.toLocaleString()}
+                    {prod.qty.toLocaleString()}
                   </DetailTd>
                   <DetailTd className="text-right font-mono tabular-nums text-muted-foreground">
-                    {line.errorQuantity == null ? "—" : line.errorQuantity.toLocaleString()}
+                    {prod.excQty.toLocaleString()}
                   </DetailTd>
-                  <DetailTd>{line.unit}</DetailTd>
-                  <DetailTd>{line.productName}</DetailTd>
-                  <DetailTd>{line.productNameKo}</DetailTd>
+                  <DetailTd>{prod.unit}</DetailTd>
+                  <DetailTd>{prod.productName}</DetailTd>
                 </tr>
               ))}
             </tbody>
@@ -218,15 +222,14 @@ function InboundDetail({ row }: { row: Inbound }) {
               <tr className="border-t border-border font-medium text-foreground">
                 <DetailTd>합계</DetailTd>
                 <DetailTd className="text-right font-mono tabular-nums">
-                  {totalQuantity.toLocaleString()}
+                  {row.prodQty.toLocaleString()}
                 </DetailTd>
                 <DetailTd className="text-right font-mono tabular-nums">
                   {totalAvailable.toLocaleString()}
                 </DetailTd>
                 <DetailTd className="text-right font-mono tabular-nums">
-                  {hasAnyError ? totalError.toLocaleString() : "—"}
+                  {totalError.toLocaleString()}
                 </DetailTd>
-                <DetailTd />
                 <DetailTd />
                 <DetailTd />
               </tr>

@@ -13,10 +13,10 @@ export function DemoInboundDownloadButton({ data }: { data: Inbound[] }) {
     <ExcelDownloadButton
       data={data}
       columns={[
-        { header: "접수번호", accessor: (row) => row.receiptNo },
-        { header: "클라이언트", accessor: (row) => row.clientName },
-        { header: "SKU", accessor: (row) => row.skuName },
-        { header: "수량", accessor: (row) => row.quantity },
+        { header: "접수번호", accessor: (row) => row.ganNo ?? "" },
+        { header: "클라이언트", accessor: (row) => row.clntName ?? "" },
+        { header: "대표 제품", accessor: (row) => row.prodList[0]?.productName ?? "" },
+        { header: "수량", accessor: (row) => row.prodQty },
         { header: "상태", accessor: (row) => INBOUND_STATUS_LABEL[row.status] },
       ]}
       filename="inbound-demo"

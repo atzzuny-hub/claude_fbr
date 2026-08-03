@@ -13,7 +13,9 @@
   (정산은 이번 재구축 범위에서 제외 — 구현 금지)
 - 상태 명칭 (표시명 임의 변경 금지):
   - NEW 요청: `제출됨 → WMS 등록 대기 → 등록 완료`
-  - 입고: `예정 → 대기 → 입고`
+  - 입고: `예정 → 대기 → 입고` — 코드값 Swagger 확정: `PLAN → STANDBY → COMPLETED`,
+    취소 = `CANCELED`. 응답 전용 `UNKNOW`(원본 코드 매핑 실패, API 표기 그대로)는
+    `알 수 없음`으로 표시하고 필터 옵션에는 넣지 않는다
   - **취소**: 입고·출고·반품 공통의 종료 상태(사용자 확정 추가). 순차 파이프라인 밖의 값이라
     취소 행은 진행 단계 대신 붉은 X 단일 노드 `취소`만 표시한다(목록 배지는 붉은 톤).
     기존 진행 라벨은 그대로 유지하며, 출고/반품의 진행 라벨 자체는 여전히 설계값(확인 필요)
@@ -72,9 +74,12 @@ src/
 
 - 메뉴 표시명은 위 한국어(및 SKU/NEW/WMS)를 그대로 사용 — 라우트명은 코드 내부용
 - 로그인 후 기본 진입: `/inbound` (입고현황)
-- 클라이언트 소유 모델(Inbound, Outbound, Return, InventoryItem, Sku, WmsRequest)에는
+- 클라이언트 소유 모델(Outbound, Return, InventoryItem, Sku, WmsRequest)에는
   `client_id` 귀속 필드 필수. 물류 모델에는 국가·WMS LINK 필드 포함
   (실제 필드명은 Swagger 확인 후 통일 — 그 전까지 잠정 표기)
+- **Inbound는 Swagger 확정**: 응답 스키마를 그대로 쓴다(`idx`/`ganNo`/`clntName`/`cntyCd`/
+  `wmsLinkId(int)`/날짜는 UTC epoch ms). 행에 클라이언트 ID가 없으므로(clntName뿐)
+  CLIENT 격리는 서버 스코핑 전제 — Phase 1 목은 lib/data가 이름으로 잇는다
 - Client(마켓) 모델은 wmsLinkId로 소속 WMS에 귀속 (WmsLink 1 : Client N) — country는 WmsLink 속성, 물류 행에는 표시용 포함
 
 ## 기술 스택
@@ -109,14 +114,23 @@ src/
 - NEW 제출 시 이메일 발송 주체(Java API vs Next.js Route Handler)
 - 다국어(i18n) 적용 여부, Nginx/HTTPS 구성
 - 클라이언트 로그인 계정 ↔ 마켓 관계 — 1:1로 잠정 가정 중, 한 계정의 복수 마켓 소유 가능 여부
-- **목록 화면의 운영자용 클라이언트·국가 필터 노출 여부 (보류 — Swagger 확인 시 재검토)**
+- **목록 화면의 운영자용 클라이언트·국가 필터 노출 여부 (입고는 확정, 나머지 보류)**
   PRD F013과 위 「사용자 역할」은 운영자에게 클라이언트·국가·WMS LINK 필터 제공을 명시하지만,
-  입고현황은 현재 WMS LINK 필터만 노출한다(잠정). 실제 필터 파라미터·클라이언트 목록 조회
-  방식을 Swagger로 맞출 때 6개 목록 화면 전체에 대해 한 번에 결정한다.
-  - 결정 전까지 이 상태를 PRD 위반으로 보지 않는다(리뷰 시 재지적 대상 아님)
+  **입고현황은 Swagger 확정으로 미노출이 결론** — 목록 Req에 클라이언트·국가 파라미터가 없다
+  (wmsLinkId·기간·searchDt·status·search·페이지뿐). 나머지 5개 목록 화면은 각자 Swagger
+  확인 시 결정한다.
+  - 결정 전까지 이 상태를 PRD 위반으로 보지 않는다(리뷰 시 재지적 대상 아님 — PRD F013과의
+    차이는 PRD 갱신 필요 사항으로 사용자에게 보고됨)
   - 데이터 격리와는 무관: CLIENT 자동 스코핑은 `resolveClientScope`로 서버에서 이미 강제됨
-  - 노출로 결정될 경우 필요한 작업은 화면에서 옵션을 넘기는 것뿐 — 필터링(`lib/data`), 스키마
-    (`clientId`/`country`), SearchPanel 렌더·계층 축소는 모두 구현되어 있다
+- **입고 목록 API 확인 필요 사항 (Swagger 재확인 대상)**
+  - ~~epoch 단위 불일치~~ → 확정: `startDt/endDt`는 날짜+시:분 정밀도의 datetime(사용자 확인,
+    예시 epoch 10자리=초 단위) — 검색 패널도 datetime-local(분 단위)로 받는다
+  - ~~searchDt 전체 허용값~~ → 확정(사용자 확인): 입고접수일 `REQ_DT` · 창고도착일 `WRHS_DT` ·
+    입고완료일 `CMPL_DT`
+  - `CMPL_DT`(입고완료일)는 검색 기준으로 존재하지만 **응답에 완료일 필드가 없다** —
+    응답 스키마 누락인지 재확인 필요(목 필터는 완료 행의 마지막 변경 시각으로 근사 중)
+  - `sipDt/etaDt/arvDt`의 nullable 여부 — 명세엔 표기 없으나 미도래 단계는 값이 없어야 정상
+  - 목록 응답의 래핑 형태(total/페이지 정보 필드) — 행 스키마만 확인됨
 
 ## 개발 단계
 

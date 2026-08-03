@@ -12,21 +12,28 @@ import { z } from "zod";
  * 현행 화면 확인 후 조정이 필요할 수 있다.
  */
 
-// ── 입고상태 (확정) ───────────────────────────────────────────────
-// 순차 진행: 예정 → 대기 → 입고. 취소(CANCELLED)는 사용자 확정 추가된 종료 상태로,
-// 순차 파이프라인 밖의 값이다 — 목록 배지는 붉은 톤, 스테퍼는 진행 단계 대신 붉은 X 단일 노드로 표시한다.
-export const INBOUND_STATUS = ["SCHEDULED", "WAITING", "RECEIVED", "CANCELLED"] as const;
+// ── 입고상태 (Swagger 확정) ───────────────────────────────────────
+// 코드값은 입고 목록 API 응답의 status 그대로 — PLAN | STANDBY | COMPLETED | CANCELED | UNKNOW
+// (UNKNOW는 API 표기 그대로이며 오타가 아니다). 표시명은 CLAUDE.md 확정 명칭(예정 → 대기 → 입고, 취소).
+// 순차 진행: 예정 → 대기 → 입고. 취소(CANCELED)는 파이프라인 밖의 종료 상태 —
+// 목록 배지는 붉은 톤, 스테퍼는 진행 단계 대신 붉은 X 단일 노드로 표시한다.
+// UNKNOW: WMS 원본 코드(statusOriginalCode)를 표준 상태로 매핑하지 못한 응답 전용 값.
+export const INBOUND_STATUS = ["PLAN", "STANDBY", "COMPLETED", "CANCELED", "UNKNOW"] as const;
 export type InboundStatus = (typeof INBOUND_STATUS)[number];
 export const inboundStatusSchema = z.enum(INBOUND_STATUS);
 export const INBOUND_STATUS_LABEL: Record<InboundStatus, string> = {
-  SCHEDULED: "예정",
-  WAITING: "대기",
-  RECEIVED: "입고",
-  CANCELLED: "취소",
+  PLAN: "예정",
+  STANDBY: "대기",
+  COMPLETED: "입고",
+  CANCELED: "취소",
+  UNKNOW: "알 수 없음",
 };
+// 검색 필터로 보낼 수 있는 상태(목록 Req의 status enum과 1:1) — UNKNOW는 응답 전용이라 제외.
+export const INBOUND_STATUS_FILTER = ["PLAN", "STANDBY", "COMPLETED", "CANCELED"] as const satisfies readonly InboundStatus[];
+export const inboundStatusFilterSchema = z.enum(INBOUND_STATUS_FILTER);
 // 순차 진행 파이프라인(스테퍼 단계용) — 취소는 파이프라인 밖의 종료 상태라 제외한다.
 // 스테퍼는 이 배열로 단계를 그리고, 취소 행은 StatusStepper의 terminal 노드로 따로 표시한다.
-export const INBOUND_STATUS_FLOW = ["SCHEDULED", "WAITING", "RECEIVED"] as const satisfies readonly InboundStatus[];
+export const INBOUND_STATUS_FLOW = ["PLAN", "STANDBY", "COMPLETED"] as const satisfies readonly InboundStatus[];
 
 // ── 출고상태 (설계값 — 확인 필요) ─────────────────────────────────
 export const OUTBOUND_STATUS = ["SCHEDULED", "PREPARING", "SHIPPED"] as const;
