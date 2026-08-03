@@ -842,7 +842,9 @@ export function DataTable<T>({
               <SelectTrigger size="sm" className="w-20">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              {/* min-w-0: 옵션이 3자리 숫자뿐이라 공통 최소폭(min-w-36)을 쓰면 팝업만 트리거보다
+                * 훨씬 넓어져 옆으로 삐져나온다 — 트리거 폭(--anchor-width)에 그대로 맞춘다. */}
+              <SelectContent className="min-w-0">
                 {resolvedPageSizeOptions.map((option) => (
                   <SelectItem key={option} value={String(option)}>
                     {option}
