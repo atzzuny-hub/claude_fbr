@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * outline variant의 hover가 글자색을 foreground로 덮으므로 hover에도 초록을 다시 고정한다.
  * 행 단위 다운로드(아이콘 전용) 버튼도 이 상수를 공유해 위치와 무관하게 같은 톤을 유지한다.
  */
-export const EXCEL_BUTTON_TONE = "text-success hover:text-success";
+export const EXCEL_BUTTON_TONE = "text-success text-xs hover:text-success";
 
 export interface ExcelDownloadColumn<T> {
   header: string;
@@ -49,7 +49,7 @@ export function ExcelDownloadButton<T>({
   label = "엑셀 다운로드",
   disabled,
   className,
-  variant = "outline",
+  variant = "link",
   size,
 }: ExcelDownloadButtonProps<T>) {
   function handleClick() {
@@ -65,9 +65,8 @@ export function ExcelDownloadButton<T>({
       disabled={disabled || data.length === 0}
       onClick={handleClick}
     >
-      {/* 아이콘은 글자 뒤(우측) — 내보내기 방향을 읽는 순서 끝에 두는 배치 */}
-      {label}
       <Download data-icon="inline-end" />
+      {label}      
     </Button>
   );
 }
