@@ -81,6 +81,9 @@ src/
 
 - Next.js 16 (App Router) · TypeScript · TailwindCSS v4 · shadcn/ui · Lucide
 - React Hook Form + Zod (폼/검증) · npm
+- `@tanstack/react-virtual` — DataTable 행 가상화(화면에 보이는 행만 렌더).
+  기본 표시 건수가 500이라 한 페이지의 `<tr>`을 한꺼번에 그리면 첫 렌더가 느려지는 문제 때문에 도입.
+  `components/common/data-table.tsx`에서만 사용하며, 툴바 토글로 끌 수 있다
 - Server Component 기본, 상호작용 필요한 곳만 `'use client'`
 - `next.config.js`: `output: 'standalone'` 유지 (Docker 배포 전제)
 
