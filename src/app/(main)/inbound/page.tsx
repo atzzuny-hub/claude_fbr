@@ -79,7 +79,6 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
         title="입고현황"
         // 홈(REVE-ON)은 PageHeader가 항상 붙인다 — 현재 페이지라 href는 주지 않는다
         breadcrumbs={[{ label: "입고현황" }]}
-        // description="입고 목록을 조회하고 입고상태(예정 → 대기 → 입고) 진행을 추적합니다."
         className="shrink-0"
         // actions={ // 추후 버튼이 들어갈 자리.. }
       />

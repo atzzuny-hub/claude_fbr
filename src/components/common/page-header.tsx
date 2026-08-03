@@ -43,7 +43,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "mb-5 border-b border-border pb-4",
+        "border-b border-border pb-4",
         className,
       )}
     >
