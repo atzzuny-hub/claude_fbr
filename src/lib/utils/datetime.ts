@@ -25,3 +25,15 @@ export function formatDateTime(value: string | null | undefined, fallback = "-")
   const time = formatTime(value);
   return time ? `${formatDate(value)} ${time}` : formatDate(value);
 }
+
+/**
+ * Date → <input type="date"> 값("YYYY-MM-DD", 로컬 시간대 기준).
+ * toISOString()은 UTC로 변환하므로 자정 전후나 해외 시간대에서 날짜가 하루 밀린다 —
+ * 로컬 연/월/일을 직접 조립한다. (브라우저에서 "오늘" 같은 상대 날짜를 만들 때 사용)
+ */
+export function toDateInputValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}

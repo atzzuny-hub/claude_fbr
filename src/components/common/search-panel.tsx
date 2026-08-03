@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,22 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { buildQueryString } from "@/lib/utils/search-params";
+import { toDateInputValue } from "@/lib/utils/datetime";
 import type { UserRole } from "@/types";
 
 /** select 전체 옵션 sentinel — "" 값은 Base UI Select item과 충돌해 별도 문자열을 쓴다 */
 const ALL = "ALL";
+
+/** 기간 필드 초기값의 폭(일) — 종료일은 오늘, 시작일은 오늘로부터 이 일수만큼 전. */
+const DEFAULT_PERIOD_DAYS = 7;
+
+/** 기간 초기값(시작일 = 오늘-1주, 종료일 = 오늘)을 로컬 날짜 기준으로 계산한다. */
+function defaultPeriod(): { from: string; to: string } {
+  const today = new Date();
+  const from = new Date(today);
+  from.setDate(from.getDate() - DEFAULT_PERIOD_DAYS);
+  return { from: toDateInputValue(from), to: toDateInputValue(today) };
+}
 
 /**
  * 검색 컨트롤 공통 높이(40px) — 라벨이 보더에 걸치는 구조라 기본 h-8보다 한 단 크게 둔다.
@@ -87,6 +99,8 @@ export interface SearchPanelProps {
 /**
  * F012 검색 패널 — 기간(시작일/종료일)·기준일자·WMS LINK·상태·검색어 + 초기화(아이콘)/조회.
  * 값 형태는 BaseSearchParams(@/types/common)와 1:1 대응한다.
+ * 기간 초기값은 최근 1주(시작일 = 오늘-7일, 종료일 = 오늘) — URL에 값이 없을 때만 채워지고,
+ * 초기화 버튼도 빈값이 아니라 이 초기값으로 되돌린다. 조회를 눌러야 목록에 적용된다.
  * 도메인 옵션(wmsLinkOptions/dateFieldOptions/statusOptions/clientOptions/countryOptions)은
  * 전부 props 주입 — 이 컴포넌트는 어떤 도메인 상태값도 하드코딩하지 않는다.
  *
@@ -124,6 +138,26 @@ export function SearchPanel({
   const [clientId, setClientId] = useState(defaultValues?.clientId ?? ALL);
   const [country, setCountry] = useState(defaultValues?.country ?? ALL);
   const [keyword, setKeyword] = useState(defaultValues?.keyword ?? "");
+
+  /*
+   * 기간 초기값(시작일 = 오늘-1주, 종료일 = 오늘) 채우기.
+   * 렌더 중에 new Date()로 계산하지 않는 이유: 이 컴포넌트는 SSR도 거치므로 서버와 브라우저의
+   * 시간대가 다르면(예: UTC 서버 배포) "오늘"이 서로 달라 hydration이 어긋난다 — 마운트 후
+   * 브라우저 로컬 기준으로 한 번만 채운다. URL에 기간이 이미 있으면(조회한 화면 새로고침·
+   * 링크 공유 등) 그 값이 우선이므로 건드리지 않는다.
+   */
+  useLayoutEffect(() => {
+    if (defaultValues?.dateFrom || defaultValues?.dateTo) return;
+    const period = defaultPeriod();
+    // 시계(외부 시스템)에서 읽어 오는 클라이언트 전용 초기값이라 마운트 직후 1회의 추가 렌더가
+    // 의도된 비용이다 — set-state-in-effect 규칙이 권하는 "외부 → 상태 동기화"가 정확히 이 경우.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDateFrom(period.from);
+    setDateTo(period.to);
+    // 마운트 1회만 — 이후 defaultValues가 바뀌는 경우는 조회로 URL이 바뀔 때뿐이라(상태가 이미
+    // 최신) 다시 적용할 일이 없다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // WMS LINK 1 : 클라이언트 N — WMS 선택 시 그 WMS 소속 클라이언트로만 옵션을 좁힌다.
   const scopedClientOptions = useMemo(() => {
@@ -174,8 +208,10 @@ export function SearchPanel({
   }
 
   function handleReset() {
-    setDateFrom("");
-    setDateTo("");
+    // 기간은 빈값이 아니라 초기값(오늘-1주 ~ 오늘)으로 복원한다 — 첫 진입 상태와 동일하게.
+    const period = defaultPeriod();
+    setDateFrom(period.from);
+    setDateTo(period.to);
     setDateField(dateFieldOptions[0]?.value ?? "");
     setWmsLinkId(ALL);
     setStatus(ALL);
