@@ -18,7 +18,7 @@ export function InboundDownloadButton({ data }: { data: Inbound[] }) {
       data={data}
       columns={INBOUND_CSV_COLUMNS}
       filename="inbound-export"
-      label="검색결과 다운로드"
+      label="엑셀다운로드"
     />
   );
 }

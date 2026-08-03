@@ -77,8 +77,9 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
     <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <PageHeader
         title="입고현황"
-        description="입고 목록을 조회하고 입고상태(예정 → 대기 → 입고) 진행을 추적합니다."
+        // description="입고 목록을 조회하고 입고상태(예정 → 대기 → 입고) 진행을 추적합니다."
         className="shrink-0"
+        // actions={ // 추후 버튼이 들어갈 자리.. }
       />
 
       {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.

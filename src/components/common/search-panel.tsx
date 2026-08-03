@@ -29,7 +29,7 @@ const ALL = "ALL";
  */
 const CONTROL_CLASS = "h-10 data-[size=default]:h-10";
 /** 아이콘 전용 버튼(초기화) — 위 컨트롤 높이와 같은 정사각 */
-const CONTROL_CLASS_SQUARE = "size-10";
+const CONTROL_CLASS_SQUARE = "size-8";
 
 /** "전체"(sentinel) 옵션을 앞에 붙인 목록 — Select.Root의 items와 SelectContent가 같은 배열을 쓴다 */
 function withAllOption(options: SelectOption[]): SelectOption[] {
@@ -344,7 +344,7 @@ export function SearchPanel({
             <TooltipTrigger
               render={
                 <Button
-                  variant="outline"
+                  variant="link"
                   size="icon"
                   aria-label="초기화"
                   onClick={handleReset}
