@@ -20,7 +20,10 @@ export const INBOUND_CSV_COLUMNS: ExcelDownloadColumn<Inbound>[] = [
   { header: "창고도착일", accessor: (row) => formatDateTime(row.arrivalDate, "") },
   { header: "입고 완료일", accessor: (row) => formatDateTime(row.completedDate, "") },
   { header: "클라이언트", accessor: (row) => row.clientName },
-  { header: "SKU 코드", accessor: (row) => row.skuCode },
-  { header: "SKU명", accessor: (row) => row.skuName },
-  { header: "수량", accessor: (row) => row.quantity },
+  { header: "고객명", accessor: (row) => row.customerName },
+  { header: "연락처", accessor: (row) => row.customerContact },
+  // 대표 상품(첫 라인)과 총 입고수량 — 라인 상세는 화면 행 확장에서 확인.
+  { header: "대표상품 SKU", accessor: (row) => row.skuCode },
+  { header: "대표상품명", accessor: (row) => row.skuName },
+  { header: "총 입고수량", accessor: (row) => row.quantity },
 ];

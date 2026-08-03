@@ -71,6 +71,9 @@ export async function getInbounds(params: InboundSearchParams = {}): Promise<Pag
         row.skuCode,
         row.skuName,
         row.clientName,
+        row.customerName,
+        // 상품 라인의 SKU/상품명도 검색 대상에 포함(상세에 보이는 상품으로도 찾을 수 있게)
+        ...row.lines.flatMap((line) => [line.skuCode, line.productName, line.productNameKo]),
       )
     ) {
       return false;

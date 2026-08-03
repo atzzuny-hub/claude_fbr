@@ -43,6 +43,24 @@ const RECEIPT_TIMES = ["09:15:00", "10:40:00", "11:05:00", "13:20:00", "14:50:00
 const ARRIVAL_TIMES = ["07:30:00", "08:45:00", "10:10:00", "13:05:00", "15:40:00", "18:25:00"];
 const COMPLETED_TIMES = ["11:00:00", "12:35:00", "14:15:00", "16:05:00", "17:45:00"];
 
+// 입고 상품 라인용 상품 카탈로그(영문/한글 표기 쌍). 길이 8 — 행마다 1~3개 라인을 여기서 순환 선택.
+const LINE_TEMPLATES: { skuCode: string; productName: string; productNameKo: string; unit: string }[] = [
+  { skuCode: "BJ-TONER-500", productName: "Glow Toner 500ml", productNameKo: "글로우 토너 500ml", unit: "EA" },
+  { skuCode: "BJ-SERUM-050", productName: "Vita Serum 50ml", productNameKo: "비타 세럼 50ml", unit: "EA" },
+  { skuCode: "BJ-CREAM-100", productName: "Moisture Cream 100ml", productNameKo: "수분 크림 100ml", unit: "EA" },
+  { skuCode: "BJ-CLEANSER-150", productName: "Mild Cleanser 150ml", productNameKo: "약산성 클렌저 150ml", unit: "EA" },
+  { skuCode: "BJ-SUN-050", productName: "UV Sun Cream 50ml", productNameKo: "UV 선크림 50ml", unit: "EA" },
+  { skuCode: "BJ-MASK-10", productName: "Soothing Mask 10P", productNameKo: "수딩 마스크팩 10매", unit: "SET" },
+  { skuCode: "BJ-AMPOULE-030", productName: "Repair Ampoule 30ml", productNameKo: "리페어 앰플 30ml", unit: "EA" },
+  { skuCode: "BJ-LOTION-200", productName: "Daily Lotion 200ml", productNameKo: "데일리 로션 200ml", unit: "EA" },
+];
+
+// 입고 요청 고객명 풀(길이 12, 순환). 클라이언트(마켓)와 별개의 담당 고객.
+const CUSTOMER_NAMES = [
+  "김서연", "이준호", "박민지", "최우진", "정하윤", "강도현",
+  "윤서아", "임지후", "한예린", "오세훈", "서지우", "문가은",
+];
+
 export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_, i) => {
   const clientIndex = i % mockClients.length;
   const client = mockClients[clientIndex];
@@ -69,14 +87,42 @@ export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_
     ? toDatetime(completedDay, COMPLETED_TIMES[i % COMPLETED_TIMES.length])
     : null;
   const receiptPrefix = i % 2 === 0 ? "IRSPG" : "IRADC";
+  const id = `inb-${pad(i + 1, 4)}`;
+
+  // 상품 라인 1~3개 — 템플릿을 순환 선택하고 수량은 산술로 계산(실행마다 동일).
+  const lineCount = 1 + (i % 3);
+  const lines = Array.from({ length: lineCount }, (_, j) => {
+    const template = LINE_TEMPLATES[(i + j * 3) % LINE_TEMPLATES.length];
+    const totalQuantity = (3 + ((i * 2 + j * 5) % 16)) * 100; // 300~1800, 100단위
+    // 오류수량은 대부분 미확인(null → "—"), 일부만 소량 발생.
+    const errorQuantity = (i + j) % 5 === 0 ? ((i % 3) + 1) * 2 : null;
+    // 사용가능수량은 입고 완료(RECEIVED)된 일부 라인에서만 채워지고, 그 외는 0.
+    const availableQuantity =
+      status === "RECEIVED" && (i + j) % 4 === 0 ? totalQuantity - (errorQuantity ?? 0) : 0;
+    return {
+      id: `${id}-l${j + 1}`,
+      skuCode: template.skuCode,
+      productName: template.productName,
+      productNameKo: template.productNameKo,
+      unit: template.unit,
+      totalQuantity,
+      availableQuantity,
+      errorQuantity,
+    };
+  });
+  // 총 입고수량 = 라인 합. 대표 SKU 코드/명은 첫 라인 상품으로 둔다(목록 검색·CSV 표기용).
+  const quantity = lines.reduce((sum, line) => sum + line.totalQuantity, 0);
 
   const inbound: Inbound = {
-    id: `inb-${pad(i + 1, 4)}`,
+    id,
     clientId: client.id,
     clientName: client.name,
+    customerName: CUSTOMER_NAMES[i % CUSTOMER_NAMES.length],
+    // 연락처는 인덱스 기반 결정적 생성(+82 10-XXXX-XXXX 형식)
+    customerContact: `+82 10-${pad((i * 137 + 2000) % 10000, 4)}-${pad((i * 613 + 93) % 10000, 4)}`,
     skuId: sku.id,
-    skuCode: sku.skuCode,
-    skuName: sku.name,
+    skuCode: lines[0].skuCode,
+    skuName: lines[0].productNameKo,
     country: client.country,
     wmsLinkId: client.wmsLinkId,
     wmsLinkName: client.wmsLinkName,
@@ -85,7 +131,8 @@ export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_
     // 구분할 수 있게 접두어를 다르게 둔다
     orderNo: `PO${compactDate(receiptDay).slice(2)}${pad(i + 1, 3)}`,
     receiptNo: `${receiptPrefix}${compactDate(receiptDay)}${pad(i + 1, 3)}`,
-    quantity: 20 + ((i * 13) % 180),
+    quantity,
+    lines,
     receiptDate,
     arrivalDate,
     completedDate,

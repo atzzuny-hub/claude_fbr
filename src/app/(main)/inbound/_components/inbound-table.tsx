@@ -5,13 +5,12 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
-import { StatusStepper } from "@/components/common/status-stepper";
 import { CountryCell } from "@/components/common/country-flag";
 import { DateTimeCell } from "@/components/common/date-time-cell";
 import { exportRowsToCsv } from "@/components/common/excel-download-button";
 import { mergeSearchParams } from "@/lib/utils/search-params";
-import { formatDate } from "@/lib/utils/datetime";
-import { COUNTRY_LABEL, INBOUND_STATUS, INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
+import { cn } from "@/lib/utils";
+import { INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
 import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
 
 /** StatusBadge tone 매핑 — 예정(info)→대기(warning)→입고(success), StatusBadge 문서의 권장 매핑을 따른다 */
@@ -103,24 +102,9 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
           page: 1,
         })
       }
-      renderDetail={(row) => (
-        <div className="flex flex-col gap-4">
-          <StatusStepper
-            steps={INBOUND_STATUS.map((status) => ({ key: status, label: INBOUND_STATUS_LABEL[status] }))}
-            currentKey={row.status}
-            className="max-w-md"
-          />
-          {/* 목록 컬럼에서 뺀 클라이언트·SKU·수량을 여기서 보여준다 */}
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
-            <DetailItem label="클라이언트" value={row.clientName} />
-            <DetailItem label="SKU" value={`${row.skuCode} · ${row.skuName}`} />
-            <DetailItem label="수량" value={row.quantity.toLocaleString()} />
-            <DetailItem label="국가" value={COUNTRY_LABEL[row.country]} />
-            <DetailItem label="등록일" value={formatDate(row.createdAt)} />
-            <DetailItem label="최근 수정" value={formatDate(row.updatedAt)} />
-          </dl>
-        </div>
-      )}
+      // 행 확장(+) 상세 — 고객명·연락처 + 입고 상품 리스트(합계 포함).
+      // 입고상태 파이프라인은 추후 상세화면으로 이동 예정이라 여기서는 제외한다.
+      renderDetail={(row) => <InboundDetail row={row} />}
       rowActions={(row) => (
         <Button
           variant="info-soft"
@@ -137,11 +121,95 @@ export function InboundTable({ data, total, page, pageSize, currentQuery }: Inbo
   );
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
+/**
+ * 행 확장(+) 상세 — 고객명·연락처와 입고 상품 리스트(합계 포함).
+ * 넓은 표는 자체 컨테이너에서 가로 스크롤한다(페이지 본문은 가로로 넘치지 않게).
+ */
+function InboundDetail({ row }: { row: Inbound }) {
+  const totalQuantity = row.lines.reduce((sum, line) => sum + line.totalQuantity, 0);
+  const totalAvailable = row.lines.reduce((sum, line) => sum + line.availableQuantity, 0);
+  const totalError = row.lines.reduce((sum, line) => sum + (line.errorQuantity ?? 0), 0);
+  const hasAnyError = row.lines.some((line) => line.errorQuantity != null);
+
   return (
-    <div className="flex flex-col">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium text-foreground">{value}</dd>
+    <div className="flex flex-col gap-4">
+      {/* 고객명 · 연락처 */}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-xs">
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground">고객명</span>
+          <span className="font-medium text-foreground">{row.customerName}</span>
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="text-muted-foreground">연락처</span>
+          <span className="font-medium tabular-nums text-foreground">{row.customerContact}</span>
+        </span>
+      </div>
+
+      {/* 상품 리스트 */}
+      <div className="flex flex-col gap-2">
+        <div className="text-xs text-tertiary-foreground">
+          상품 리스트 ({row.lines.length}) · {row.lines.length}종 {totalQuantity.toLocaleString()}개
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-160 border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-border text-tertiary-foreground">
+                <DetailTh>SKU</DetailTh>
+                <DetailTh className="text-right">입고 전체수량</DetailTh>
+                <DetailTh className="text-right">사용가능수량</DetailTh>
+                <DetailTh className="text-right">오류수량</DetailTh>
+                <DetailTh>단위</DetailTh>
+                <DetailTh>상품명</DetailTh>
+                <DetailTh>상품명(한글)</DetailTh>
+              </tr>
+            </thead>
+            <tbody>
+              {row.lines.map((line) => (
+                <tr key={line.id} className="border-b border-border/60">
+                  <DetailTd className="font-mono">{line.skuCode}</DetailTd>
+                  <DetailTd className="text-right font-mono font-medium tabular-nums">
+                    {line.totalQuantity.toLocaleString()}
+                  </DetailTd>
+                  <DetailTd className="text-right font-mono tabular-nums">
+                    {line.availableQuantity.toLocaleString()}
+                  </DetailTd>
+                  <DetailTd className="text-right font-mono tabular-nums text-muted-foreground">
+                    {line.errorQuantity == null ? "—" : line.errorQuantity.toLocaleString()}
+                  </DetailTd>
+                  <DetailTd>{line.unit}</DetailTd>
+                  <DetailTd>{line.productName}</DetailTd>
+                  <DetailTd>{line.productNameKo}</DetailTd>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t border-border font-medium text-foreground">
+                <DetailTd>합계</DetailTd>
+                <DetailTd className="text-right font-mono tabular-nums">
+                  {totalQuantity.toLocaleString()}
+                </DetailTd>
+                <DetailTd className="text-right font-mono tabular-nums">
+                  {totalAvailable.toLocaleString()}
+                </DetailTd>
+                <DetailTd className="text-right font-mono tabular-nums">
+                  {hasAnyError ? totalError.toLocaleString() : "—"}
+                </DetailTd>
+                <DetailTd />
+                <DetailTd />
+                <DetailTd />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </div>
   );
+}
+
+function DetailTh({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <th className={cn("px-3 py-2 text-left font-medium whitespace-nowrap", className)}>{children}</th>;
+}
+
+function DetailTd({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return <td className={cn("px-3 py-2 text-left whitespace-nowrap", className)}>{children}</td>;
 }

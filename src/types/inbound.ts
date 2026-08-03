@@ -16,10 +16,32 @@ import { inboundStatusSchema } from "./status";
  * 상태(예정 → 대기 → 입고)와의 관계: 예정=접수만, 대기=도착까지, 입고=완료까지.
  * 필드명은 Swagger 확인 전까지 잠정(CLAUDE.md TBD).
  */
+/**
+ * 입고 상품 라인 — 한 건의 입고에 실제로 들어온 상품 목록(행 확장 상세에서 표로 보여준다).
+ *  - totalQuantity(입고 전체수량): 접수된 수량
+ *  - availableQuantity(사용가능수량): 검수 후 실제 사용 가능한 수량
+ *  - errorQuantity(오류수량): 불량/오류로 빠진 수량. 아직 확인 전이면 null → 화면엔 "—"
+ * 상품명은 표시용 영문/한글 두 가지를 함께 담는다(목록 상세의 상품명·상품명(한글) 컬럼).
+ */
+export const inboundLineSchema = z.object({
+  id: z.string(),
+  skuCode: z.string(),
+  productName: z.string(), // 상품명 (영문 표기)
+  productNameKo: z.string(), // 상품명(한글)
+  unit: z.string(),
+  totalQuantity: z.number().int().nonnegative(),
+  availableQuantity: z.number().int().nonnegative(),
+  errorQuantity: z.number().int().nonnegative().nullable(),
+});
+export type InboundLine = z.infer<typeof inboundLineSchema>;
+
 export const inboundSchema = z.object({
   id: z.string(),
   clientId: z.string(),
   clientName: z.string(),
+  // 고객명·연락처 — 행 확장 상세 상단에 표시(입고 요청 담당 고객). 클라이언트(마켓)와는 별개.
+  customerName: z.string(),
+  customerContact: z.string(),
   skuId: z.string(),
   skuCode: z.string(),
   skuName: z.string(),
@@ -29,7 +51,10 @@ export const inboundSchema = z.object({
   status: inboundStatusSchema,
   orderNo: z.string(),
   receiptNo: z.string(),
+  // 총 입고수량 = lines의 totalQuantity 합(상세 합계·CSV 수량과 일치).
   quantity: z.number().int().nonnegative(),
+  // 입고 상품 라인(1건 이상). 상세 상품 리스트·합계의 출처.
+  lines: z.array(inboundLineSchema),
   receiptDate: z.iso.datetime(),
   arrivalDate: z.iso.datetime().nullable(),
   completedDate: z.iso.datetime().nullable(),
