@@ -259,7 +259,7 @@ export function SearchPanel({
             type="date"
             value={dateFrom}
             onChange={(event) => setDateFrom(event.target.value)}
-            className={cn(CONTROL_CLASS, "w-[8.5rem]")}
+            className={cn(CONTROL_CLASS, "w-44")}
           />
         </Field>
 
@@ -269,7 +269,7 @@ export function SearchPanel({
             type="date"
             value={dateTo}
             onChange={(event) => setDateTo(event.target.value)}
-            className={cn(CONTROL_CLASS, "w-[8.5rem]")}
+            className={cn(CONTROL_CLASS, "w-44")}
           />
         </Field>
 
@@ -280,7 +280,7 @@ export function SearchPanel({
               value={dateField}
               onValueChange={(value) => setDateField(value as string)}
             >
-              <SelectTrigger id={`${uid}-date-field`} className={cn(CONTROL_CLASS, "w-36")}>
+              <SelectTrigger id={`${uid}-date-field`} className={cn(CONTROL_CLASS, "w-44")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -301,7 +301,7 @@ export function SearchPanel({
               value={status}
               onValueChange={(value) => setStatus(value as string)}
             >
-              <SelectTrigger id={`${uid}-status`} className={cn(CONTROL_CLASS, "w-36")}>
+              <SelectTrigger id={`${uid}-status`} className={cn(CONTROL_CLASS, "w-44")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -344,7 +344,7 @@ export function SearchPanel({
               value={country}
               onValueChange={(value) => setCountry(value as string)}
             >
-              <SelectTrigger id={`${uid}-country`} className={cn(CONTROL_CLASS, "w-32")}>
+              <SelectTrigger id={`${uid}-country`} className={cn(CONTROL_CLASS, "w-44")}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -358,7 +358,7 @@ export function SearchPanel({
           </Field>
         )}
 
-        <Field label="검색어" htmlFor={`${uid}-keyword`} className="min-w-56 flex-1">
+        <Field label="검색어" htmlFor={`${uid}-keyword`} className="w-44">
           <Search
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-tertiary-foreground"
             aria-hidden="true"
@@ -393,7 +393,7 @@ export function SearchPanel({
             <TooltipContent>초기화</TooltipContent>
           </Tooltip>
           <Button onClick={handleSearch} className={CONTROL_CLASS}>
-            <Search data-icon="inline-start" />
+            {/* <Search data-icon="inline-start" /> */}
             조회
           </Button>
         </div>

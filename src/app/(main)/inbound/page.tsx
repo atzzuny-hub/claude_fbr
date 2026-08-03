@@ -94,7 +94,6 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
         role={session.role}
         wmsLinkOptions={wmsLinkOptions}
         dateFieldOptions={DATE_FIELD_OPTIONS}
-        // 기준일자 바로 옆에 입고상태 select가 놓인다(SearchPanel의 필드 순서)
         statusOptions={STATUS_OPTIONS}
         statusLabel="입고상태"
         keywordPlaceholder="주문번호 · 접수번호 · SKU 검색"
