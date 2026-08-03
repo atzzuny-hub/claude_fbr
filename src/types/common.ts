@@ -36,9 +36,15 @@ export const DEFAULT_PAGE_SIZE = 500;
 // F012 검색 패널 스펙(기간·기준일자·WMS LINK·검색어)과 1:1 대응.
 // 입고현황/출고현황/반품현황/재고현황/SKU/NEW 6개 목록 화면에서 이 타입을 확장해
 // status 등 도메인 전용 필터를 추가한다.
+// 기간 경계값 — 검색 패널은 날짜+시:분("2026-07-28T00:00", datetime-local)을 보내고,
+// 과거 URL/북마크의 날짜만 있는 값("2026-07-28")도 계속 허용한다(시작일은 00:00,
+// 종료일은 23:59로 해석 — lib/data/utils.withinDateTimeRange).
+// 입고 목록 Req의 startDt/endDt가 날짜+시:분 정밀도라(사용자 확인) 프런트 계약도 이에 맞춘다.
+const dateBoundSchema = z.union([z.iso.datetime({ local: true }), z.iso.date()]);
+
 export const baseSearchParamsSchema = z.object({
-  dateFrom: z.iso.date().optional(), // 기간 시작일
-  dateTo: z.iso.date().optional(), // 기간 종료일
+  dateFrom: dateBoundSchema.optional(), // 기간 시작(날짜+시:분)
+  dateTo: dateBoundSchema.optional(), // 기간 종료(날짜+시:분)
   dateField: z.string().optional(), // 기준일자 (필터 대상 날짜 필드명, 도메인별로 다름)
   wmsLinkId: z.string().optional(), // WMS LINK 필터
   keyword: z.string().optional(), // 검색어

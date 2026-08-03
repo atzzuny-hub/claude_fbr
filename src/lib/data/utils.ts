@@ -76,6 +76,30 @@ export function withinDateRange(
   return true;
 }
 
+/** 기간 경계값을 분 단위 ISO("YYYY-MM-DDTHH:mm")로 정규화 — 날짜만 오면 하루의 시작/끝으로 채운다. */
+function normalizeDateTimeBound(value: string, endOfDay: boolean): string {
+  return value.length === 10 ? `${value}T${endOfDay ? "23:59" : "00:00"}` : value.slice(0, 16);
+}
+
+/**
+ * epoch(ms, UTC) 값의 기간 필터 — 날짜+시:분 단위로 비교한다(입고 Req의 startDt/endDt 정밀도).
+ * dateFrom/dateTo는 datetime-local 값("2026-07-28T00:00") 또는 과거 URL의 날짜만 있는 값.
+ * 비교는 UTC 문자열(분 단위)로 — 표시(formatEpoch*)와 같은 기준이라 화면에 보이는 시각
+ * 그대로 걸린다. 기간 필터가 아예 없으면 항상 통과, 필터가 있는데 값이 없으면 제외한다.
+ */
+export function withinDateTimeRange(
+  epochMs: number | null | undefined,
+  dateFrom?: string,
+  dateTo?: string,
+): boolean {
+  if (!dateFrom && !dateTo) return true;
+  if (epochMs == null) return false;
+  const value = new Date(epochMs).toISOString().slice(0, 16);
+  if (dateFrom && value < normalizeDateTimeBound(dateFrom, false)) return false;
+  if (dateTo && value > normalizeDateTimeBound(dateTo, true)) return false;
+  return true;
+}
+
 export function matchesKeyword(
   keyword: string | undefined,
   ...fields: (string | null | undefined)[]
