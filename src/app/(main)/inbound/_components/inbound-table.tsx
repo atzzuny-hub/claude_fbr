@@ -8,7 +8,7 @@ import { DataTable, type DataTableColumn } from "@/components/common/data-table"
 import { StatusBadge } from "@/components/common/status-badge";
 import { CountryCell } from "@/components/common/country-flag";
 import { DateTimeCell } from "@/components/common/date-time-cell";
-import { exportRowsToCsv } from "@/components/common/excel-download-button";
+import { EXCEL_BUTTON_TONE, exportRowsToCsv } from "@/components/common/excel-download-button";
 import { mergeSearchParams } from "@/lib/utils/search-params";
 import { cn } from "@/lib/utils";
 import { INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
@@ -126,7 +126,10 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
         renderDetail={(row) => <InboundDetail row={row} />}
         rowActions={(row) => (
           <Button
-            variant="info-soft"
+            // 툴바의 "엑셀다운로드"와 같은 톤(흰 배경 + 초록 아이콘)으로 맞춘다 —
+            // 같은 다운로드 동작이 위치에 따라 다른 색으로 보이지 않게 한다.
+            variant="outline"
+            className={EXCEL_BUTTON_TONE}
             size="icon-xs"
             aria-label="이 행 다운로드"
             onClick={() =>

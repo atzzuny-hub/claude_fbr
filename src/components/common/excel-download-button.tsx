@@ -4,6 +4,15 @@ import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { buttonVariants } from "@/components/ui/button";
 import type { VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+
+/**
+ * 엑셀 내보내기 버튼 톤 — 흰 배경(outline) + 초록 글자·아이콘.
+ * 엑셀을 뜻하는 초록은 success 토큰을 쓴다(하드코딩 색 금지, 다크 모드도 토큰이 따라간다).
+ * outline variant의 hover가 글자색을 foreground로 덮으므로 hover에도 초록을 다시 고정한다.
+ * 행 단위 다운로드(아이콘 전용) 버튼도 이 상수를 공유해 위치와 무관하게 같은 톤을 유지한다.
+ */
+export const EXCEL_BUTTON_TONE = "text-success hover:text-success";
 
 export interface ExcelDownloadColumn<T> {
   header: string;
@@ -40,7 +49,7 @@ export function ExcelDownloadButton<T>({
   label = "엑셀 다운로드",
   disabled,
   className,
-  variant = "secondary",
+  variant = "outline",
   size,
 }: ExcelDownloadButtonProps<T>) {
   function handleClick() {
@@ -52,12 +61,13 @@ export function ExcelDownloadButton<T>({
       type="button"
       variant={variant}
       size={size}
-      className={className}
+      className={cn(EXCEL_BUTTON_TONE, className)}
       disabled={disabled || data.length === 0}
       onClick={handleClick}
     >
-      <Download data-icon="inline-start" />
+      {/* 아이콘은 글자 뒤(우측) — 내보내기 방향을 읽는 순서 끝에 두는 배치 */}
       {label}
+      <Download data-icon="inline-end" />
     </Button>
   );
 }
