@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { mergeSearchParams } from "@/lib/utils/search-params";
 import { cn } from "@/lib/utils";
 import { INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
 import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
+import { InboundDetailDialog } from "./inbound-detail-dialog";
 
 /**
  * StatusBadge tone 매핑 — 예정(info)→대기(warning)→입고(success), StatusBadge 권장 매핑을 따른다.
@@ -42,6 +44,14 @@ interface InboundTableProps {
  */
 export function InboundTable({ data, total, page, pageSize, currentQuery, toolbarActions }: InboundTableProps) {
   const router = useRouter();
+
+  /*
+   * 행 클릭 상세 팝업 — 목록이 이미 받아 둔 행을 그대로 넘긴다(추가 조회 없음).
+   * detailRow를 open과 따로 두는 이유: 닫히는 애니메이션 동안에도 내용이 남아 있어야 한다
+   * (row를 즉시 비우면 사라지는 중에 빈 팝업이 한 프레임 보인다).
+   */
+  const [detailRow, setDetailRow] = useState<Inbound | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   function navigate(updates: Record<string, string | number | undefined>) {
     const qs = mergeSearchParams(new URLSearchParams(currentQuery), updates);
@@ -82,50 +92,59 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
   ];
 
   return (
-    <DataTable
-      // 목록은 화면 높이 안에 들어가고, 행이 많으면 표 안에서만 스크롤된다(헤더 고정·페이지네이션 상시 노출).
-      // 부모(page.tsx)가 높이 정해진 flex 컬럼이어야 동작한다.
-      fillHeight
-      // 헤더 우측 경계를 드래그해 컬럼 너비 조절 가능 — 조절값은 persistKey로 브라우저에 저장·복원
-      resizableColumns
-      persistKey="inbound"
-      // 표 상단 툴바(열 너비 초기화 옆)에 검색결과 다운로드 버튼을 놓는다
-      toolbarActions={toolbarActions}
-      columns={columns}
-      data={data}
-      getRowId={(row) => row.id}
-      total={total}
-      page={page}
-      pageSize={pageSize}
-      onPageChange={(nextPage) => navigate({ page: nextPage })}
-      onPageSizeChange={(nextPageSize) => navigate({ pageSize: nextPageSize, page: 1 })}
-      // 헤더 클릭 정렬 — URL 쿼리(sort/order)로 서버 정렬. 오름→내림→해제 순환.
-      // 해제(nextOrder=null)면 sort/order를 URL에서 지운다(기본 순서로 복귀). 항상 첫 페이지로.
-      sort={sort}
-      order={order}
-      onSortChange={(key, nextOrder) =>
-        navigate({
-          sort: nextOrder ? key : undefined,
-          order: nextOrder ?? undefined,
-          page: 1,
-        })
-      }
-      // 행 확장(+) 상세 — 고객명·연락처 + 입고 상품 리스트(합계 포함).
-      // 입고상태 파이프라인은 추후 상세화면으로 이동 예정이라 여기서는 제외한다.
-      renderDetail={(row) => <InboundDetail row={row} />}
-      rowActions={(row) => (
-        <Button
-          variant="info-soft"
-          size="icon-xs"
-          aria-label="이 행 다운로드"
-          onClick={() =>
-            exportRowsToCsv([row], INBOUND_CSV_COLUMNS, `inbound-${row.receiptNo}`)
-          }
-        >
-          <Download />
-        </Button>
-      )}
-    />
+    <>
+      <DataTable
+        // 목록은 화면 높이 안에 들어가고, 행이 많으면 표 안에서만 스크롤된다(헤더 고정·페이지네이션 상시 노출).
+        // 부모(page.tsx)가 높이 정해진 flex 컬럼이어야 동작한다.
+        fillHeight
+        // 헤더 우측 경계를 드래그해 컬럼 너비 조절 가능 — 조절값은 persistKey로 브라우저에 저장·복원
+        resizableColumns
+        persistKey="inbound"
+        // 표 상단 툴바(열 너비 초기화 옆)에 검색결과 다운로드 버튼을 놓는다
+        toolbarActions={toolbarActions}
+        columns={columns}
+        data={data}
+        getRowId={(row) => row.id}
+        total={total}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={(nextPage) => navigate({ page: nextPage })}
+        onPageSizeChange={(nextPageSize) => navigate({ pageSize: nextPageSize, page: 1 })}
+        // 헤더 클릭 정렬 — URL 쿼리(sort/order)로 서버 정렬. 오름→내림→해제 순환.
+        // 해제(nextOrder=null)면 sort/order를 URL에서 지운다(기본 순서로 복귀). 항상 첫 페이지로.
+        sort={sort}
+        order={order}
+        onSortChange={(key, nextOrder) =>
+          navigate({
+            sort: nextOrder ? key : undefined,
+            order: nextOrder ?? undefined,
+            page: 1,
+          })
+        }
+        // 행 확장(+) 상세 — 고객명·연락처 + 입고 상품 리스트(합계 포함).
+        // 입고상태 파이프라인은 추후 상세화면으로 이동 예정이라 여기서는 제외한다.
+        renderDetail={(row) => <InboundDetail row={row} />}
+        rowActions={(row) => (
+          <Button
+            variant="info-soft"
+            size="icon-xs"
+            aria-label="이 행 다운로드"
+            onClick={() =>
+              exportRowsToCsv([row], INBOUND_CSV_COLUMNS, `inbound-${row.receiptNo}`)
+            }
+          >
+            <Download />
+          </Button>
+        )}
+        // 행 클릭 → 입고 상세 팝업(F001 "입고 목록/상세 조회").
+        // 행 앞 조작 칸(펼치기 · 행 다운로드) 클릭은 전달되지 않는다.
+        onRowClick={(row) => {
+          setDetailRow(row);
+          setDetailOpen(true);
+        }}
+      />
+      <InboundDetailDialog row={detailRow} open={detailOpen} onOpenChange={setDetailOpen} />
+    </>
   );
 }
 

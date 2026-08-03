@@ -5,6 +5,10 @@ export interface StatusStep {
   key: string;
   /** 반드시 types/status.ts의 *_LABEL 맵에서 뽑아 주입 (예: INBOUND_STATUS_LABEL.SCHEDULED) */
   label: string;
+  /** 라벨 위 보조 캡션(선택) — 예: "STEP 1". 상세 화면처럼 넓은 영역에서만 쓴다 */
+  caption?: string;
+  /** 라벨 뒤 보조 설명(선택) — 예: 그 단계에 해당하는 시점 이름("창고 도착") */
+  description?: string;
 }
 
 export interface StatusStepperProps {
@@ -70,11 +74,21 @@ export function StatusStepper({ steps, currentKey, terminal, className }: Status
               </span>
               <span
                 className={cn(
-                  "max-w-20 text-center text-xs font-medium text-tertiary-foreground",
+                  // 설명이 붙으면 두 단어가 한 줄에 들어가도록 라벨 폭을 넓게 잡는다
+                  "text-center text-xs font-medium text-tertiary-foreground",
+                  step.description ? "max-w-32" : "max-w-20",
                   (isCompleted || isCurrent) && "text-foreground",
                 )}
               >
+                {step.caption && (
+                  <span className="mb-0.5 block text-[0.6875rem] font-normal text-tertiary-foreground">
+                    {step.caption}
+                  </span>
+                )}
                 {step.label}
+                {step.description && (
+                  <span className="ml-1 font-normal text-tertiary-foreground">{step.description}</span>
+                )}
               </span>
             </div>
             {!isLast && (

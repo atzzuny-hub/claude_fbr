@@ -86,6 +86,11 @@ export interface DataTableProps<T> {
   /** 행 단위 액션 슬롯 — 예: 행별 엑셀 다운로드 아이콘 */
   rowActions?: (row: T) => React.ReactNode;
   /**
+   * 행을 클릭했을 때 호출된다(예: 상세 팝업 열기). 지정하면 행에 커서·포커스 링이 붙고
+   * Enter/Space 키로도 열 수 있다. 행 앞 조작 칸(확장 토글·행 액션)의 클릭은 전달되지 않는다.
+   */
+  onRowClick?: (row: T) => void;
+  /**
    * 표 상단 툴바(검색영역과 표 사이, 우측)에 놓을 화면별 액션 — 예: 검색결과 다운로드 버튼.
    * 공통 컴포넌트가 특정 부품에 의존하지 않도록 상위에서 렌더된 노드를 주입받는다.
    */
@@ -221,6 +226,7 @@ export function DataTable<T>({
   onSortChange,
   renderDetail,
   rowActions,
+  onRowClick,
   toolbarActions,
   fillHeight = false,
   className,
@@ -569,7 +575,11 @@ export function DataTable<T>({
     if (hasLeadingCell) {
       cells.push(
         <TableCell key="__row-controls" className={rowCellClass(true, columns.length === 0, expanded)}>
-          <div className="flex items-center gap-1.5">
+          {/* 조작 칸의 클릭은 행 클릭(상세 열기)으로 번지지 않게 한다 — 펼치기/행 액션이 우선이다 */}
+          <div
+            className="flex items-center gap-1.5"
+            onClick={(event) => event.stopPropagation()}
+          >
             {hasExpand && (
               <Button
                 variant="ghost"
@@ -625,9 +635,34 @@ export function DataTable<T>({
         key={key}
         data-index={index}
         ref={measureRow}
+        // 행 클릭으로 상세를 열 수 있게 한다. 키보드에서도 같은 동작이 되도록 포커스를 받고
+        // Enter/Space에 반응한다. 본문 텍스트를 드래그로 선택한 직후에는 열지 않는다
+        // (주문번호 등을 복사하려던 조작이 팝업 열기로 오해되지 않게 한다).
+        onClick={
+          onRowClick
+            ? () => {
+                if (window.getSelection()?.toString()) return;
+                onRowClick(row);
+              }
+            : undefined
+        }
+        onKeyDown={
+          onRowClick
+            ? (event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onRowClick(row);
+              }
+            : undefined
+        }
+        tabIndex={onRowClick ? 0 : undefined}
+        aria-haspopup={onRowClick ? "dialog" : undefined}
         className={cn(
           "group/row border-none transition-[filter] duration-150 hover:bg-transparent",
           expanded ? ROW_SHADOW_SELECTED : cn(ROW_SHADOW, ROW_SHADOW_HOVER),
+          onRowClick &&
+            "cursor-pointer outline-none focus-visible:[&>td]:bg-row-alt focus-visible:[&>td:first-child]:ring-2 focus-visible:[&>td:first-child]:ring-ring/50",
         )}
       >
         {cells}
