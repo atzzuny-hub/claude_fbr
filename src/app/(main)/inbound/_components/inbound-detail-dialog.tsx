@@ -16,11 +16,11 @@ import { formatDateTime } from "@/lib/utils/datetime";
 import { INBOUND_STATUS_FLOW, INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
 
 /** 각 진행 단계에 해당하는 시점 이름 — 목록의 날짜 컬럼(입고접수일·창고도착일·입고 완료일)과 1:1 */
-const STEP_MILESTONE: Record<(typeof INBOUND_STATUS_FLOW)[number], string> = {
-  SCHEDULED: "입고 접수",
-  WAITING: "창고 도착",
-  RECEIVED: "입고 완료",
-};
+// const STEP_MILESTONE: Record<(typeof INBOUND_STATUS_FLOW)[number], string> = {
+//   SCHEDULED: "입고 접수",
+//   WAITING: "창고 도착",
+//   RECEIVED: "입고 완료",
+// };
 
 /** 값이 없는 항목(아직 도착/완료 전)은 대시로 표시한다 */
 const EMPTY = "—";
@@ -37,8 +37,8 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
   const steps: StatusStep[] = INBOUND_STATUS_FLOW.map((status, index) => ({
     key: status,
     label: INBOUND_STATUS_LABEL[status],
-    caption: `STEP ${index + 1}`,
-    description: STEP_MILESTONE[status],
+    // caption: `STEP ${index + 1}`,
+    // description: STEP_MILESTONE[status],
   }));
 
   return (
