@@ -16,9 +16,9 @@ import { delay, matchesKeyword, paginate, sortItems, withinDateTimeRange } from 
  * 도메인 스키마는 입고 목록 API(Swagger 확정) 응답 그대로다 — 날짜는 UTC epoch ms.
  * Phase 2에서는 이 파일 내부만 BFF 호출로 교체한다: dateFrom/dateTo → startDt/endDt(epoch),
  * dateField → searchDt, keyword → search, page → pageNo(0-base), status/wmsLinkId는 그대로.
- * 전체 건수(total)는 목록과 별도 엔드포인트 `/dtin/cnt`로 조회한다(Swagger 확정) — Req는
- * 목록과 같은 필터에 페이지 파라미터만 없다. getInbounds가 내부에서 목록+건수 두 호출을
- * 합성해 Paginated<Inbound>를 유지하므로 호출부(화면)는 바뀌지 않는다.
+ * 엔드포인트 정의(단일 출처): lib/api/inbound.ts INBOUND_API — 목록 list(/dtin) ·
+ * 건수 count(/dtin/cnt). 건수는 목록과 같은 필터에 페이지 파라미터만 없다. getInbounds가
+ * 내부에서 목록+건수 두 호출을 합성해 Paginated<Inbound>를 유지하므로 호출부(화면)는 바뀌지 않는다.
  * ※ Req의 startDt/endDt 예시는 10자리(초)라 응답(ms)과 단위가 다르다 — 변환 시 확인 필요.
  */
 const inbounds: Inbound[] = [...mockInbounds];

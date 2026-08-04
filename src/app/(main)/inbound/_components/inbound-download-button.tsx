@@ -11,6 +11,10 @@ import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
  *
  * data는 page.tsx가 현재 검색 조건으로 별도 조회한 "검색결과 전체"(페이지네이션 미적용)를
  * 전달한다 — F012 "검색결과 전체 다운로드" 요구사항 대응.
+ *
+ * Phase 2 교체 지점: 서버 제공 엑셀 다운로드 엔드포인트가 확정되어 있다
+ * (lib/api/inbound.ts INBOUND_API.download = /dtin/dn) — 클라이언트 CSV 생성 대신
+ * BFF 경유 파일 다운로드로 교체한다.
  */
 export function InboundDownloadButton({ data }: { data: Inbound[] }) {
   return (

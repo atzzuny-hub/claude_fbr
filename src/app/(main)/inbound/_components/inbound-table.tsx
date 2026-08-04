@@ -129,6 +129,8 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
           <Button
             // 툴바의 "엑셀다운로드"와 같은 톤(흰 배경 + 초록 아이콘)으로 맞춘다 —
             // 같은 다운로드 동작이 위치에 따라 다른 색으로 보이지 않게 한다.
+            // Phase 2 교체 지점: 행 상세 엑셀은 서버 엔드포인트가 확정되어 있다
+            // (lib/api/inbound.ts INBOUND_API.downloadRow = /dtin/dn/{idx}).
             variant="outline"
             className={EXCEL_BUTTON_TONE}
             size="icon-xs"

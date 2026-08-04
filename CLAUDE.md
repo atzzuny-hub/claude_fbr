@@ -50,6 +50,7 @@ src/
 │   ├── ui/         # shadcn 생성 컴포넌트 (직접 수정 최소화)
 │   └── common/     # 공통 부품: SearchPanel, DataTable, StatusStepper, ExcelDownloadButton
 ├── lib/
+│   ├── api/        # Java API 엔드포인트 정의(도메인별 *_API 상수, 확정분만) — Phase 2 BFF가 사용
 │   ├── data/       # 데이터 접근 함수 — Phase 2 교체 지점
 │   ├── mock/       # 목데이터 (JSON/TS)
 │   └── utils/
@@ -134,8 +135,12 @@ src/
   - ~~sipDt(배송일)~~ → 제거 확정(사용자 확인: 이제 안 씀) — 타입·목·화면·CSV 전부에서
     뺐고, 응답에 남아 있어도 무시한다
   - ~~목록 응답의 total~~ → 확정: 전체 건수는 별도 엔드포인트 `/dtin/cnt`(Req는 목록과
-    동일한 필터, 페이지 파라미터 없음). 목록 엔드포인트 경로 자체(`/dtin` 추정)와 전역
-    래핑(`{ code, data, message }`) 여부는 여전히 미확인
+    동일한 필터, 페이지 파라미터 없음)
+  - ~~목록 엔드포인트 경로~~ → 확정(사용자 확인): 목록 GET `/dtin` · 건수 `/dtin/cnt` ·
+    검색결과 전체 엑셀 `/dtin/dn` · 행 상세 엑셀 `/dtin/dn/{idx}` — 정의는
+    `lib/api/inbound.ts`(INBOUND_API)가 단일 출처. 엑셀은 서버 생성 파일 엔드포인트라
+    Phase 1의 클라이언트 CSV 생성은 Phase 2에 서버 다운로드로 교체한다.
+    전역 래핑(`{ code, data, message }`) 여부는 여전히 미확인
   - 카운트 API 문서의 status enum에 보이는 `WORK`는 **실재하지 않는 값(사용자 확인)** —
     상태는 PLAN/STANDBY/COMPLETED/CANCELED(+응답 전용 UNKNOW)가 전부이며 WORK는 무시한다
 
