@@ -36,6 +36,13 @@ export const authLoginResponseSchema = z.object({
 });
 export type AuthLoginResponse = z.infer<typeof authLoginResponseSchema>;
 
+/**
+ * 토큰 재발급(POST /auth/token) 응답 — 로그인 응답과 동일 형태(레거시 useAjax에서 확인:
+ * auth·email·name·accessToken·refreshToken·utc·tmzn을 그대로 다시 준다).
+ * 리프레시 토큰도 매번 회전(rotate)되므로 갱신 시 두 토큰을 모두 갈아끼운다.
+ */
+export const authTokenResponseSchema = authLoginResponseSchema;
+export type AuthTokenResponse = AuthLoginResponse;
 
 /**
  * auth 레벨 → 화면 역할 매핑.

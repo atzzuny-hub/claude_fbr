@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { AUTH_API } from "@/lib/api";
-import { javaApiUrl } from "../../_lib/java-api";
+import { javaApiUrl } from "@/lib/api/server";
 import {
+  JAVA_API_ERROR_CODE,
   authLoginResponseSchema,
+  javaApiErrorSchema,
   loginInputSchema,
   parseWebClientIds,
   resolveRoleFromAuthLevel,
@@ -40,7 +42,15 @@ export async function POST(request: Request) {
   if (upstream.status === 401) {
     return NextResponse.json({ error: "INVALID_CREDENTIALS" }, { status: 401 });
   }
-  if (!upstream.ok) return NextResponse.json({ error: "UPSTREAM_ERROR" }, { status: 502 });
+  if (!upstream.ok) {
+    // 로그인 실패는 500 + errorCode 1006으로도 온다(레거시 useAjax에서 확인) — 자격증명
+    // 오류로 정규화한다. 그 외 5xx는 업스트림 오류.
+    const errBody = javaApiErrorSchema.safeParse(await upstream.json().catch(() => null));
+    if (errBody.success && errBody.data.errorCode === JAVA_API_ERROR_CODE.LOGIN_FAILED) {
+      return NextResponse.json({ error: "INVALID_CREDENTIALS" }, { status: 401 });
+    }
+    return NextResponse.json({ error: "UPSTREAM_ERROR" }, { status: 502 });
+  }
 
   const json: unknown = await upstream.json().catch(() => null);
   const parsed = authLoginResponseSchema.safeParse(json);

@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { SESSION_COOKIE } from "@/lib/auth/cookies";
 import { sessionSchema, type Session } from "@/types";
 
 /**
@@ -11,17 +12,15 @@ import { sessionSchema, type Session } from "@/types";
  * 토큰 만료(maxAge)는 정책 미확정이라 세션 쿠키(브라우저 종료 시 소멸)로 둔다 — TBD.
  */
 
-export const ACCESS_TOKEN_COOKIE = "reve_access_token";
-export const REFRESH_TOKEN_COOKIE = "reve_refresh_token";
-export const SESSION_COOKIE = "reve_session";
+// 쿠키 이름·옵션 단일 출처는 lib/auth/cookies — 미들웨어(토큰 선제 갱신)와 공유하므로
+// next 런타임 의존이 없는 모듈에 두고, 기존 호출부(BFF 라우트)를 위해 여기서 재수출한다.
+export {
+  ACCESS_TOKEN_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+  SESSION_COOKIE,
+  SESSION_COOKIE_OPTIONS,
+} from "@/lib/auth/cookies";
 
-/** BFF가 세 쿠키를 심을 때 공통 옵션 — httpOnly + lax, 프로덕션에서만 secure */
-export const SESSION_COOKIE_OPTIONS = {
-  httpOnly: true,
-  sameSite: "lax",
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-} as const;
 
 export type { Session };
 

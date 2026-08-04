@@ -49,15 +49,17 @@
 
 ```
 src/
-├── app/            # App Router 라우트 (Phase 2에 app/api = BFF 추가)
+├── app/            # App Router 라우트 (app/api/auth = 인증 BFF 가동, 데이터 BFF는 도메인별 순차 추가)
 ├── components/
 │   ├── ui/         # shadcn 생성 컴포넌트 (직접 수정 최소화)
 │   └── common/     # 공통 부품: SearchPanel, DataTable, StatusStepper, ExcelDownloadButton
 ├── lib/
-│   ├── api/        # Java API 엔드포인트 정의(도메인별 *_API 상수, 확정분만) — Phase 2 BFF가 사용
+│   ├── api/        # Java API 엔드포인트 정의(*_API 상수, 확정분만) + server.ts(BFF·프록시 전용 호출 헬퍼)
+│   ├── auth/       # 인증 공유 모듈(쿠키 상수·JWT exp 디코드) — next 런타임 무의존(프록시와 공유)
 │   ├── data/       # 데이터 접근 함수 — Phase 2 교체 지점
 │   ├── mock/       # 목데이터 (JSON/TS)
 │   └── utils/
+├── proxy.ts        # 액세스 토큰 선제 갱신(Next 16 프록시 — 구 미들웨어 컨벤션)
 └── types/          # 도메인 타입 · zod 스키마 · 상태 enum — 단일 출처(source of truth)
 ```
 
@@ -120,11 +122,14 @@ src/
   브라우저에는 BFF가 httpOnly 쿠키로만 심는다(원칙 5 — JS 접근 토큰 금지).
   `auth` 레벨은 LV1~LV9 존재, **LV1 = 운영자 확정**(사용자 확인) — 비-LV1은 CLIENT로
   보수 매핑 중(LV2~LV9 의미 확정 시 `resolveRoleFromAuthLevel`만 갱신).
-  **남은 확인**: ① `/auth/token` 응답 형태(확인 전 리프레시 미구현 — 만료 시 재로그인)
-  ② LV2~LV9의 의미 ③ 토큰 만료 정책(쿠키 maxAge 미설정 — 브라우저 세션 수명)
-  ④ ~~로그인 401 오류 구분~~ → 구분 불가 확인(빈 바디 401): 화면은 단일 문구
-  "이메일 또는 비밀번호가 올바르지 않습니다."로 통합 — **PRD F010(오류 2종)과 어긋나
-  PRD 갱신 필요(사용자 보고됨)**
+  **남은 확인**: ① ~~`/auth/token` 응답 형태~~ → 확정(레거시 useAjax로 확인): 로그인 응답과
+  동일 형태 + **리프레시 토큰 매번 회전** — `src/proxy.ts`가 액세스 토큰 exp 임박 시
+  선제 갱신한다(같은 토큰 동시 갱신은 single-flight로 합침, 실패 시 쿠키 삭제 후 로그인으로)
+  ② LV2~LV9의 의미 ③ 토큰 만료 정책 문서화(현재는 JWT exp 클레임 기반 대응, 쿠키는
+  브라우저 세션 수명) ④ ~~로그인 401 오류 구분~~ → 구분 불가 확정: 실패는 401(빈 바디)
+  또는 500+errorCode 1006 두 형태(레거시 확인)이며 화면은 단일 문구 "이메일 또는
+  비밀번호가 잘못되었습니다."(레거시 문구 계승) — **PRD F010(오류 2종)과 어긋나 PRD 갱신
+  필요(사용자 보고됨)**. Java errorCode 카탈로그는 `JAVA_API_ERROR_CODE`(types/common.ts)
 - Java API 응답 래핑 형태(`{ code, data, message }` 여부), Swagger 문서
 - NEW 제출 시 이메일 발송 주체(Java API vs Next.js Route Handler)
 - 다국어(i18n) 적용 여부, Nginx/HTTPS 구성

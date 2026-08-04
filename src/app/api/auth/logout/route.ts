@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_API } from "@/lib/api";
-import { postJavaApi } from "../../_lib/java-api";
+import { postJavaApi } from "@/lib/api/server";
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,

@@ -1,7 +1,7 @@
 /**
- * BFF 전용 Java API 호출 헬퍼 — 이 파일은 Route Handler(서버)에서만 import한다.
- * API_BASE_URL은 서버 전용 환경변수(.env.local / .env.production)이며 NEXT_PUBLIC_
- * 접두사를 절대 붙이지 않는다(CLAUDE.md 원칙 4). 경로는 lib/api의 *_API 상수만 쓴다.
+ * Java API 호출 헬퍼 — 서버 전용(미들웨어·BFF Route Handler에서만 import).
+ * 배럴(index.ts)에서 재수출하지 않는다 — 경로 정의(도메인 파일)와 달리 이 파일은
+ * API_BASE_URL(서버 전용 env)에 접근하므로 클라이언트 그래프에 섞이면 안 된다.
  */
 
 export function javaApiUrl(path: string): string {

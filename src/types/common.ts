@@ -32,6 +32,26 @@ export const javaApiErrorSchema = z.object({
 });
 export type JavaApiError = z.infer<typeof javaApiErrorSchema>;
 
+/**
+ * errorCode 카탈로그 — 레거시 프런트(useAjax.ts)에서 확인(2026-08-04).
+ * 주의: LOGIN_FAILED(1006)는 HTTP 500으로 온다(401 아님) — BFF가 자격증명 오류로 정규화.
+ * 1018/1023은 레거시 주석상 둘 다 "제품관리 중복 등록" 계열 — 구분 의미는 확인 필요.
+ */
+export const JAVA_API_ERROR_CODE = {
+  /** 액세스 토큰 오류(만료·위조) — 데이터 API 401에 동반 */
+  INVALID_ACCESS_TOKEN: "1003",
+  /** 로그인 실패(이메일 또는 비밀번호 오류) — HTTP 500 */
+  LOGIN_FAILED: "1006",
+  /** 비밀번호 변경 시 기존 비밀번호 불일치 — HTTP 401 */
+  CURRENT_PASSWORD_MISMATCH: "1009",
+  /** 제품관리 중복 등록(A) */
+  DUPLICATE_PRODUCT_A: "1018",
+  /** 제품관리 중복 등록(B) */
+  DUPLICATE_PRODUCT_B: "1023",
+  /** WMS API 연동 실패(인증 정보 오류) */
+  WMS_API_AUTH_FAILED: "1050",
+} as const;
+
 // ── 페이지네이션 ──────────────────────────────────────────────────
 // 제네릭 응답 포맷이라 zod 스키마 대신 순수 TS 제네릭으로 정의한다.
 export interface Paginated<T> {
