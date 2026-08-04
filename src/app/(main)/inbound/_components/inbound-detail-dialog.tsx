@@ -74,7 +74,6 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
               <DetailField label="고객명" value={row.contactName ?? EMPTY} />
               <DetailField label="고객연락처" value={row.contactTel ?? EMPTY} mono />
               <DetailField label="입고접수일" value={formatEpochDateTime(row.reqDt, EMPTY)} mono />
-              <DetailField label="배송일" value={formatEpochDateTime(row.sipDt, EMPTY)} mono />
               <DetailField label="도착예정일" value={formatEpochDateTime(row.etaDt, EMPTY)} mono />
               <DetailField label="창고도착일" value={formatEpochDateTime(row.arvDt, EMPTY)} mono />
               <DetailField label="입고 ID" value={row.dataId} mono />

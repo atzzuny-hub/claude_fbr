@@ -69,7 +69,8 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
   const sort = currentQuery.sort || undefined;
   const order = currentQuery.order === "desc" ? "desc" : currentQuery.order === "asc" ? "asc" : undefined;
 
-  // 컬럼 8개 — Swagger 응답 필드 기준(접수번호=ganNo 하나로 통합, 날짜는 응답의 4종).
+  // 컬럼 7개 — Swagger 응답 필드 기준(접수번호=ganNo 하나로 통합, 날짜는 3종 —
+  // 배송일(sipDt)은 사용자 확정으로 제외).
   // 여기서 빠진 클라이언트·제품·수량은 행 확장(+) 상세와 CSV로 옮겼다.
   const columns: DataTableColumn<Inbound>[] = [
     { key: "ganNo", header: "접수번호", cell: (row) => nullableCell(row.ganNo), cellClassName: "font-mono" },
@@ -82,10 +83,9 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
     },
     { key: "country", header: "국가", cell: (row) => <CountryCell country={row.cntyCd} /> },
     { key: "wmsLink", header: "WMS LINK", cell: (row) => row.wmsLinkName },
-    // 네 날짜는 시각까지 표시한다(DateTimeCell: 날짜 위 · 시각 아래, epoch ms → UTC 표기).
-    // 아직 일어나지 않은 단계(미배송/미도착)는 값이 없어 "-"만 나온다.
+    // 세 날짜는 시각까지 표시한다(DateTimeCell: 날짜 위 · 시각 아래, epoch ms → UTC 표기).
+    // 아직 일어나지 않은 단계(미도착)는 값이 없어 "-"만 나온다.
     { key: "reqDt", header: "입고접수일", cell: (row) => <DateTimeCell value={row.reqDt} /> },
-    { key: "sipDt", header: "배송일", cell: (row) => <DateTimeCell value={row.sipDt} /> },
     { key: "etaDt", header: "도착예정일", cell: (row) => <DateTimeCell value={row.etaDt} /> },
     { key: "arvDt", header: "창고도착일", cell: (row) => <DateTimeCell value={row.arvDt} /> },
   ];

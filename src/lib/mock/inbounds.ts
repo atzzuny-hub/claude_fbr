@@ -28,10 +28,9 @@ const STATUS_CYCLE: InboundStatus[] = [
 
 const TOTAL_INBOUNDS = 64;
 
-// 단계별 시각 풀 — 접수는 업무시간, 배송/도착은 이른 아침~저녁 하차 시간대로
+// 단계별 시각 풀 — 접수는 업무시간, 도착은 이른 아침~저녁 하차 시간대로
 // 서로 다른 길이(홀수/짝수 섞음)를 줘서 행마다 같은 조합이 반복되지 않게 한다.
 const REQ_TIMES = ["09:15:00", "10:40:00", "11:05:00", "13:20:00", "14:50:00"];
-const SIP_TIMES = ["08:20:00", "11:30:00", "16:10:00", "18:40:00"];
 const ARV_TIMES = ["07:30:00", "08:45:00", "10:10:00", "13:05:00", "15:40:00", "18:25:00"];
 
 // 제품 목록(SKU LIST)용 카탈로그. 길이 8 — 행마다 1~3개 라인을 여기서 순환 선택.
@@ -74,18 +73,16 @@ export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_
   const status = STATUS_CYCLE[(i + clientIndex) % STATUS_CYCLE.length];
 
   // 날짜 계산은 순수 날짜(YYYY-MM-DD)로 하고, 필드에 담을 때만 epoch(ms)로 바꾼다.
-  // 접수일을 날짜 풀보다 6일 앞으로 당겨 두면 뒤에 더하는 배송(+1일)·도착예정(+3~5일)·
+  // 접수일을 날짜 풀보다 6일 앞으로 당겨 두면 뒤에 더하는 도착예정(+3~5일)·
   // 도착(예정±1일)까지 모두 풀의 마지막 날짜(기준일 2026-07-31) 안에 들어온다.
   const reqDay = addDays(pickDate(i, 0), -6);
-  // 상태별 진행 단계 — 예정: 접수(+도착예정)만, 대기: 배송·도착까지, 입고: 대기와 동일
+  // 상태별 진행 단계 — 예정: 접수(+도착예정)만, 대기: 도착까지, 입고: 대기와 동일
   // (완료 시점 필드는 응답에 없다), 취소: 접수만, UNKNOW: 원본 코드 미매핑(접수만).
-  const sipDay = status === "STANDBY" || status === "COMPLETED" ? addDays(reqDay, 1) : null;
   const etaDay = status === "CANCELED" || status === "UNKNOW" ? null : addDays(reqDay, 3 + (i % 3));
   const arvDay =
     (status === "STANDBY" || status === "COMPLETED") && etaDay ? addDays(etaDay, i % 2) : null;
 
   const reqDt = toEpoch(reqDay, REQ_TIMES[i % REQ_TIMES.length]);
-  const sipDt = sipDay ? toEpoch(sipDay, SIP_TIMES[i % SIP_TIMES.length]) : null;
   const etaDt = etaDay ? toEpoch(etaDay, "00:00:00") : null; // 도착"예정"일은 시각 없이 자정 기준
   const arvDt = arvDay ? toEpoch(arvDay, ARV_TIMES[i % ARV_TIMES.length]) : null;
 
@@ -110,8 +107,8 @@ export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_
       ? null
       : `${GAN_PREFIXES[i % GAN_PREFIXES.length]}${compactDate(reqDay).slice(2)}${pad(idx, 4)}`;
 
-  // 마지막으로 일어난 단계의 시각 — WMS/FBR 변경일 계산에 쓴다.
-  const lastEventDt = arvDt ?? sipDt ?? null;
+  // 마지막으로 일어난 단계(창고 도착)의 시각 — WMS/FBR 변경일 계산에 쓴다.
+  const lastEventDt = arvDt;
 
   const inbound: Inbound = {
     idx,
@@ -126,7 +123,6 @@ export const mockInbounds: Inbound[] = Array.from({ length: TOTAL_INBOUNDS }, (_
     clntName: client.name,
     cntyCd: client.country,
     reqDt,
-    sipDt,
     etaDt,
     arvDt,
     prodList,

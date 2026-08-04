@@ -91,7 +91,6 @@ export function DemoInboundTable({ data, total, page, pageSize, currentQuery }: 
           )}
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:grid-cols-4">
             <DetailItem label="국가" value={row.cntyCd} />
-            <DetailItem label="배송일" value={formatEpochDateTime(row.sipDt)} />
             <DetailItem label="도착예정일" value={formatEpochDateTime(row.etaDt)} />
             <DetailItem label="창고도착일" value={formatEpochDateTime(row.arvDt)} />
             <DetailItem label="최근 수정" value={formatEpochDateTime(row.updDt)} />

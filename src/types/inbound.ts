@@ -11,9 +11,11 @@ import { inboundStatusFilterSchema, inboundStatusSchema } from "./status";
  * 스코핑하는 전제다. Phase 1 목데이터 스코핑은 lib/data/inbounds.ts가 이름으로 잇는다.
  *
  * ※ Swagger 대비 우리 쪽에서 느슨하게 둔 부분(연동 시 확인):
- *  - sipDt/etaDt/arvDt: 명세에 nullable 표기가 없지만, 미도래 단계(예: 예정 상태의 창고
+ *  - etaDt/arvDt: 명세에 nullable 표기가 없지만, 미도래 단계(예: 예정 상태의 창고
  *    도착일)는 값이 있을 수 없으므로 nullable로 모델링했다 — 실제 응답이 0/누락/값 중
  *    무엇을 주는지 확인 필요.
+ *  - sipDt(배송일): 사용자 확정으로 제거(2026-08 "이제 안 씀") — 응답에 남아 있어도
+ *    무시한다(화면·CSV·목데이터 전부에서 뺌).
  */
 
 /** 제품 목록(SKU LIST) 한 줄 — 행 확장 상세의 상품 표와 1:1 */
@@ -38,7 +40,6 @@ export const inboundSchema = z.object({
   clntName: z.string().nullable(), // 클라이언트 이름
   cntyCd: countrySchema, // 국가코드
   reqDt: z.number().int(), // 접수일 (UTC epoch ms)
-  sipDt: z.number().int().nullable(), // 배송일 (UTC epoch ms)
   etaDt: z.number().int().nullable(), // 도착예정일 (UTC epoch ms)
   arvDt: z.number().int().nullable(), // 창고 도착일 (UTC epoch ms)
   prodList: z.array(inboundSkuSchema), // 제품 목록(SKU LIST)

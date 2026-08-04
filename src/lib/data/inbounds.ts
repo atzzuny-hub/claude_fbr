@@ -42,7 +42,7 @@ function resolveDate(row: Inbound, dateField?: InboundDateField): number | null 
  * 정렬 값 접근자 — sort 키(= 목록 컬럼 key)별 비교 기준값을 돌려준다.
  *  - status: 파이프라인 순서(예정→대기→입고→취소→알 수 없음)로 정렬되게 enum 인덱스를 쓴다.
  *  - country: 화면에 보이는 한글 국가명 기준(사용자가 보는 순서와 일치).
- *  - 날짜 4종: epoch(ms) 수치 비교. 아직 없는 값(null)은 sortItems가 항상 뒤로 보낸다.
+ *  - 날짜 3종: epoch(ms) 수치 비교. 아직 없는 값(null)은 sortItems가 항상 뒤로 보낸다.
  *  - 모르는 키: null → 정렬 안 함(원본 순서 유지).
  */
 function inboundSortValue(row: Inbound, key: string): string | number | null {
@@ -57,8 +57,6 @@ function inboundSortValue(row: Inbound, key: string): string | number | null {
       return row.wmsLinkName;
     case "reqDt":
       return row.reqDt;
-    case "sipDt":
-      return row.sipDt;
     case "etaDt":
       return row.etaDt;
     case "arvDt":
