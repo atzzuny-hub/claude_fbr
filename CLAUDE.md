@@ -110,13 +110,19 @@ src/
 
 ## 미확정 (TBD) — 필요 시 사용자에게 질문
 
-- 인증 방식: JWT 확정(사용자, 2026-08-04) — 단 로그인 API 경로·Req/Res 형태, 토큰 전달
-  방식(응답 바디 vs Set-Cookie), 리프레시 토큰 유무·만료 정책은 확인 필요. 브라우저에는
-  BFF가 httpOnly 쿠키로만 심는다(원칙 5 유지 — JS 접근 토큰 금지)
+- 인증: JWT 확정 + 엔드포인트 3종 확정(사용자 제공 2026-08-04, `lib/api/auth.ts`):
+  POST `/auth/login`(Req email/password → Res에 accessToken·refreshToken·auth 레벨 등) ·
+  `/auth/logout`(Req refreshToken → true) · `/auth/token`(재발급). 토큰은 응답 바디로 오며
+  브라우저에는 BFF가 httpOnly 쿠키로만 심는다(원칙 5 — JS 접근 토큰 금지).
+  **남은 확인**: ① `/auth/token` 응답 형태 ② `auth` 레벨 값 종류(예: LV1)와
+  OPERATOR/CLIENT 매핑 ③ 토큰 만료 정책 ④ 로그인 401이 계정 없음/비밀번호 불일치를
+  구분해 주는지(프로브에선 빈 바디 401)
 - Java API 응답 래핑 형태(`{ code, data, message }` 여부), Swagger 문서
 - NEW 제출 시 이메일 발송 주체(Java API vs Next.js Route Handler)
 - 다국어(i18n) 적용 여부, Nginx/HTTPS 구성
-- 클라이언트 로그인 계정 ↔ 마켓 관계 — 1:1로 잠정 가정 중, 한 계정의 복수 마켓 소유 가능 여부
+- 클라이언트 로그인 계정 ↔ 마켓 관계 — 1:1로 잠정 가정 중, 한 계정의 복수 마켓 소유 가능 여부.
+  ※ 로그인 응답의 `webClientIds`가 복수형(스펙 예시 `"['aaaa', 'bbbb']"` — 배열 모양
+  문자열)이라 복수 소유를 시사한다. 의미·실제 타입 확인 필요
 - **목록 화면의 운영자용 클라이언트·국가 필터 노출 여부 (입고는 확정, 나머지 보류)**
   PRD F013과 위 「사용자 역할」은 운영자에게 클라이언트·국가·WMS LINK 필터 제공을 명시하지만,
   **입고현황은 Swagger 확정으로 미노출이 결론** — 목록 Req에 클라이언트·국가 파라미터가 없다
@@ -142,7 +148,9 @@ src/
     검색결과 전체 엑셀 `/dtin/dn` · 행 상세 엑셀 `/dtin/dn/{idx}` — 정의는
     `lib/api/inbound.ts`(INBOUND_API)가 단일 출처. 엑셀은 서버 생성 파일 엔드포인트라
     Phase 1의 클라이언트 CSV 생성은 Phase 2에 서버 다운로드로 교체한다.
-    전역 래핑(`{ code, data, message }`) 여부는 여전히 미확인
+    전역 래핑: **에러 응답은 래핑이 아님을 프로브로 확인**(2026-08-04) —
+    `{ timestamp, path, status, error, requestId, errorCode }` 형태(`javaApiErrorSchema`).
+    성공 응답의 래핑 여부만 미확인(실 토큰 호출로 확정)
   - 카운트 API 문서의 status enum에 보이는 `WORK`는 **실재하지 않는 값(사용자 확인)** —
     상태는 PLAN/STANDBY/COMPLETED/CANCELED(+응답 전용 UNKNOW)가 전부이며 WORK는 무시한다
 

@@ -12,4 +12,5 @@
 // 새 도메인 추가: outbound.ts 등 도메인 파일을 만들어 *_API 상수(경로 리터럴 + 파라미터는
 // 함수)로 정의하고 아래에서 재수출한다.
 
+export * from "./auth";
 export * from "./inbound";

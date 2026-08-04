@@ -18,6 +18,20 @@ export const COUNTRY_LABEL: Record<Country, string> = {
   VN: "베트남",
 };
 
+// ── Java API 공통 에러 바디 ────────────────────────────────────────
+// 프로브로 확인(2026-08-04, GET /dtin 무토큰 401 응답): 에러는 { code, data, message }
+// 래핑이 아니라 아래 형태다. errorCode(예: "1003" = 액세스 토큰 오류)가 판별 키.
+// 성공 응답의 전역 래핑 여부는 여전히 미확인(CLAUDE.md TBD) — 실 토큰 호출로 확정한다.
+export const javaApiErrorSchema = z.object({
+  timestamp: z.string().optional(),
+  path: z.string().optional(),
+  status: z.number().optional(),
+  error: z.string().optional(),
+  requestId: z.string().optional(),
+  errorCode: z.string().optional(),
+});
+export type JavaApiError = z.infer<typeof javaApiErrorSchema>;
+
 // ── 페이지네이션 ──────────────────────────────────────────────────
 // 제네릭 응답 포맷이라 zod 스키마 대신 순수 TS 제네릭으로 정의한다.
 export interface Paginated<T> {
@@ -36,10 +50,10 @@ export const DEFAULT_PAGE_SIZE = 500;
 // F012 검색 패널 스펙(기간·기준일자·WMS LINK·검색어)과 1:1 대응.
 // 입고현황/출고현황/반품현황/재고현황/SKU/NEW 6개 목록 화면에서 이 타입을 확장해
 // status 등 도메인 전용 필터를 추가한다.
-// 기간 경계값 — 검색 패널은 날짜+시:분("2026-07-28T00:00", datetime-local)을 보내고,
-// 과거 URL/북마크의 날짜만 있는 값("2026-07-28")도 계속 허용한다(시작일은 00:00,
-// 종료일은 23:59로 해석 — lib/data/utils.withinDateTimeRange).
-// 입고 목록 Req의 startDt/endDt가 날짜+시:분 정밀도라(사용자 확인) 프런트 계약도 이에 맞춘다.
+// 기간 경계값 — 검색 패널은 날짜만("2026-07-28", type=date) 보내고(사용자 확정),
+// 과거 URL/북마크의 날짜+시:분 값("2026-07-28T00:00")도 계속 허용한다. 날짜만 있는 값은
+// 시작일 00:00 · 종료일 23:59로 해석한다(lib/data/utils.withinDateTimeRange — Req의
+// startDt/endDt가 날짜+시:분 정밀도인 것과의 매핑도 같은 규칙).
 const dateBoundSchema = z.union([z.iso.datetime({ local: true }), z.iso.date()]);
 
 export const baseSearchParamsSchema = z.object({
