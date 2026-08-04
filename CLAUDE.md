@@ -105,12 +105,14 @@ src/
 - 메뉴 신설·삭제·개명, 상태 표시명 변경, '셀러' 용어 사용
 - 정산 기능 구현
 - `lib/data`를 우회한 데이터 접근, 컴포넌트 내 하드코딩 데이터
-- Phase 1에서 실 API 연동·인증 구현·Docker/CI 작업 착수
+- 스펙(엔드포인트·인증 방식·응답 형태) 미확정 도메인의 실 API 연동 임의 착수, Docker/CI 작업 착수
 - 아래 TBD 항목을 임의로 확정하는 것
 
 ## 미확정 (TBD) — 필요 시 사용자에게 질문
 
-- 인증 방식(Bearer JWT 예상) 및 세션 처리 상세
+- 인증 방식: JWT 확정(사용자, 2026-08-04) — 단 로그인 API 경로·Req/Res 형태, 토큰 전달
+  방식(응답 바디 vs Set-Cookie), 리프레시 토큰 유무·만료 정책은 확인 필요. 브라우저에는
+  BFF가 httpOnly 쿠키로만 심는다(원칙 5 유지 — JS 접근 토큰 금지)
 - Java API 응답 래핑 형태(`{ code, data, message }` 여부), Swagger 문서
 - NEW 제출 시 이메일 발송 주체(Java API vs Next.js Route Handler)
 - 다국어(i18n) 적용 여부, Nginx/HTTPS 구성
@@ -146,8 +148,12 @@ src/
 
 ## 개발 단계
 
-- **Phase 1 (현재)**: 타입·목데이터 → 공통 컴포넌트 → 화면 조립 (전 화면 목데이터 기반)
-- **Phase 2**: BFF Route Handler 작성, `lib/data` 실 API 교체, 인증, Docker/CI/배포
+- **Phase 1 (종료)**: 타입·목데이터 → 공통 컴포넌트 → 입고현황·로그인 조립까지 완료
+- **Phase 2 (현재 — 사용자 확정 2026-08-04로 조기 착수)**: JWT 인증 + 확정 도메인(입고)부터
+  BFF(Route Handler) 연동 → 실데이터 검증 후, 나머지 메뉴는 실 API 기반으로 조립한다
+  (화면 전부 목으로 먼저 만드는 원계획을 사용자 지시로 변경). Docker/CI/배포는 후순위.
+  연동 착수 전 선행 확인 필수: 인증 API 스펙 · 응답 전역 래핑 여부 · dev에서 접근 가능한
+  API_BASE_URL(주의: `next dev`는 `.env.production`을 읽지 않는다 — `.env.local` 필요)
 
 ## 명령어
 
