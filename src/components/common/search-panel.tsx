@@ -26,24 +26,26 @@ const ALL = "ALL";
 const DEFAULT_PERIOD_DAYS = 7;
 
 /**
- * 기간 초기값 — 시작 = (오늘-1주) 00:00, 종료 = 오늘 23:59 (datetime-local 값 형식).
- * 기간은 날짜+시:분 단위로 검색한다(입고 목록 Req의 startDt/endDt 정밀도와 동일).
+ * 기간 초기값 — 시작 = 오늘-1주, 종료 = 오늘 (date 값 "YYYY-MM-DD").
+ * 기간은 날짜 단위로만 입력받는다(사용자 확정: 시간 불필요). Req의 startDt/endDt는
+ * datetime 정밀도지만, 조회 필터가 날짜만 있는 값을 시작 00:00 / 종료 23:59로 확장한다
+ * (lib/data/utils.withinDateTimeRange — Phase 2 BFF 변환도 같은 규칙).
  */
 function defaultPeriod(): { from: string; to: string } {
   const today = new Date();
   const from = new Date(today);
   from.setDate(from.getDate() - DEFAULT_PERIOD_DAYS);
-  return { from: `${toDateInputValue(from)}T00:00`, to: `${toDateInputValue(today)}T23:59` };
+  return { from: toDateInputValue(from), to: toDateInputValue(today) };
 }
 
 /**
- * URL로 들어온 기간 값을 datetime-local 입력 형식("YYYY-MM-DDTHH:mm")으로 정규화한다.
- * 과거 URL/북마크의 날짜만 있는 값은 시작 00:00 / 종료 23:59로 채운다 — 그대로 넣으면
- * datetime-local 입력이 형식 불일치로 값을 버려 빈칸으로 보인다(필터는 걸린 채로).
+ * URL로 들어온 기간 값을 date 입력 형식("YYYY-MM-DD")으로 정규화한다.
+ * 과거 URL/북마크의 datetime 값("…T00:00")은 앞 10자만 취한다 — 그대로 넣으면
+ * date 입력이 형식 불일치로 값을 버려 빈칸으로 보인다(필터는 걸린 채로).
  */
-function toDateTimeLocalValue(value: string | undefined, endOfDay: boolean): string {
+function toDateValue(value: string | undefined): string {
   if (!value) return "";
-  return value.length === 10 ? `${value}T${endOfDay ? "23:59" : "00:00"}` : value.slice(0, 16);
+  return value.slice(0, 10);
 }
 
 /**
@@ -143,8 +145,8 @@ export function SearchPanel({
   /** 라벨 ↔ 컨트롤 연결용 id 프리픽스 — 한 화면에 패널이 둘 이상 있어도 id가 겹치지 않는다 */
   const uid = useId();
 
-  const [dateFrom, setDateFrom] = useState(toDateTimeLocalValue(defaultValues?.dateFrom, false));
-  const [dateTo, setDateTo] = useState(toDateTimeLocalValue(defaultValues?.dateTo, true));
+  const [dateFrom, setDateFrom] = useState(toDateValue(defaultValues?.dateFrom));
+  const [dateTo, setDateTo] = useState(toDateValue(defaultValues?.dateTo));
   const [dateField, setDateField] = useState(defaultValues?.dateField ?? dateFieldOptions[0]?.value ?? "");
   const [wmsLinkId, setWmsLinkId] = useState(defaultValues?.wmsLinkId ?? ALL);
   const [status, setStatus] = useState(defaultValues?.status ?? ALL);
@@ -266,11 +268,12 @@ export function SearchPanel({
 
         {/* 기간은 시작일/종료일 각각 독립 필드 — 필드마다 라벨이 자기 보더에 걸리는 구조라
          * 두 인풋을 하나의 "기간" 라벨로 묶지 않는다.
-         * datetime-local: 기간을 날짜+시:분 단위로 검색한다(입고 Req의 startDt/endDt 정밀도). */}
+         * type="date": 기간은 날짜 단위로만 받는다(사용자 확정: 시간 불필요) —
+         * 시작 00:00/종료 23:59 확장은 조회 필터(withinDateTimeRange) 몫이다. */}
         <Field label="시작일" htmlFor={`${uid}-date-from`}>
           <Input
             id={`${uid}-date-from`}
-            type="datetime-local"
+            type="date"
             value={dateFrom}
             onChange={(event) => setDateFrom(event.target.value)}
             className={cn(CONTROL_CLASS, "w-44")}
@@ -280,7 +283,7 @@ export function SearchPanel({
         <Field label="종료일" htmlFor={`${uid}-date-to`}>
           <Input
             id={`${uid}-date-to`}
-            type="datetime-local"
+            type="date"
             value={dateTo}
             onChange={(event) => setDateTo(event.target.value)}
             className={cn(CONTROL_CLASS, "w-44")}

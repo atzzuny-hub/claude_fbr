@@ -83,7 +83,8 @@ function normalizeDateTimeBound(value: string, endOfDay: boolean): string {
 
 /**
  * epoch(ms, UTC) 값의 기간 필터 — 날짜+시:분 단위로 비교한다(입고 Req의 startDt/endDt 정밀도).
- * dateFrom/dateTo는 datetime-local 값("2026-07-28T00:00") 또는 과거 URL의 날짜만 있는 값.
+ * dateFrom/dateTo는 날짜 값("2026-07-28", 검색 패널이 date 입력으로 보냄 — 시작 00:00/
+ * 종료 23:59로 확장) 또는 과거 URL의 datetime-local 값("2026-07-28T09:30").
  * 비교는 UTC 문자열(분 단위)로 — 표시(formatEpoch*)와 같은 기준이라 화면에 보이는 시각
  * 그대로 걸린다. 기간 필터가 아예 없으면 항상 통과, 필터가 있는데 값이 없으면 제외한다.
  */
