@@ -1,6 +1,6 @@
 import type { Outbound, OutboundSearchParams, Paginated } from "@/types";
 import { mockOutbounds } from "@/lib/mock/outbounds";
-import { getSession, resolveClientScope } from "./session";
+import { canAccessClient, requireSession, resolveClientScope } from "./session";
 import { delay, matchesKeyword, paginate, withinDateRange } from "./utils";
 
 /**
@@ -23,11 +23,11 @@ function resolveDate(row: Outbound, dateField?: string): string | null {
 
 export async function getOutbounds(params: OutboundSearchParams = {}): Promise<Paginated<Outbound>> {
   await delay();
-  const session = await getSession();
-  const scopedClientId = resolveClientScope(session, params.clientId);
+  const session = await requireSession();
+  const scopedClientIds = resolveClientScope(session, params.clientId);
 
   const filtered = outbounds.filter((row) => {
-    if (scopedClientId && row.clientId !== scopedClientId) return false;
+    if (scopedClientIds && !scopedClientIds.includes(row.clientId)) return false;
     if (params.wmsLinkId && row.wmsLinkId !== params.wmsLinkId) return false;
     if (params.country && row.country !== params.country) return false;
     if (params.status && row.status !== params.status) return false;
@@ -40,9 +40,9 @@ export async function getOutbounds(params: OutboundSearchParams = {}): Promise<P
 
 export async function getOutbound(id: string): Promise<Outbound | null> {
   await delay();
-  const session = await getSession();
+  const session = await requireSession();
   const row = outbounds.find((r) => r.id === id) ?? null;
   if (!row) return null;
-  if (session.role === "CLIENT" && row.clientId !== session.clientId) return null;
+  if (!canAccessClient(session, row.clientId)) return null;
   return row;
 }

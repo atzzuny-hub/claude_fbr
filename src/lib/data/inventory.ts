@@ -1,6 +1,6 @@
 import type { InventoryItem, InventorySearchParams, Paginated } from "@/types";
 import { mockInventoryItems } from "@/lib/mock/inventory";
-import { getSession, resolveClientScope } from "./session";
+import { canAccessClient, requireSession, resolveClientScope } from "./session";
 import { delay, matchesKeyword, paginate, withinDateRange } from "./utils";
 
 /**
@@ -13,11 +13,11 @@ export async function getInventoryItems(
   params: InventorySearchParams = {},
 ): Promise<Paginated<InventoryItem>> {
   await delay();
-  const session = await getSession();
-  const scopedClientId = resolveClientScope(session, params.clientId);
+  const session = await requireSession();
+  const scopedClientIds = resolveClientScope(session, params.clientId);
 
   const filtered = inventoryItems.filter((row) => {
-    if (scopedClientId && row.clientId !== scopedClientId) return false;
+    if (scopedClientIds && !scopedClientIds.includes(row.clientId)) return false;
     if (params.wmsLinkId && row.wmsLinkId !== params.wmsLinkId) return false;
     if (params.country && row.country !== params.country) return false;
     if (!withinDateRange(row.updatedAt, params.dateFrom, params.dateTo)) return false;
@@ -29,9 +29,9 @@ export async function getInventoryItems(
 
 export async function getInventoryItem(id: string): Promise<InventoryItem | null> {
   await delay();
-  const session = await getSession();
+  const session = await requireSession();
   const row = inventoryItems.find((r) => r.id === id) ?? null;
   if (!row) return null;
-  if (session.role === "CLIENT" && row.clientId !== session.clientId) return null;
+  if (!canAccessClient(session, row.clientId)) return null;
   return row;
 }

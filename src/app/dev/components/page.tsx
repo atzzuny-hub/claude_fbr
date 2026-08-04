@@ -1,4 +1,4 @@
-import { getClients, getInbounds, getSession, getWmsLinks } from "@/lib/data";
+import { getClients, getInbounds, getWmsLinks, requireSession } from "@/lib/data";
 import {
   CLIENT_STATUS_LABEL,
   INBOUND_DATE_FIELD,
@@ -49,10 +49,9 @@ interface DevComponentsPageProps {
  * 입고(Inbound) 목데이터로 SearchPanel/DataTable/StatusStepper/StatusBadge/
  * ExcelDownloadButton이 실제 도메인 타입·lib/data와 맞물려 동작하는지 확인한다.
  *
- * 세션 역할 전환: src/lib/mock/session.ts의 CURRENT_USER_ID를
- *  - "user-01" → OPERATOR (사이드바 10개 메뉴, 클라이언트 select 노출)
- *  - "user-05" → CLIENT   (사이드바 6개 메뉴, 클라이언트 select 미노출, 본인 데이터만 조회)
- * 로 바꾼 뒤 새로고침해서 비교한다.
+ * 세션은 실 로그인(httpOnly 쿠키) 기준(2026-08-04 전환) — 비로그인 접근은 /login으로
+ * 리디렉션되고, 역할(OPERATOR/CLIENT)은 로그인 계정의 auth 레벨을 따른다.
+ * 역할별 화면 비교는 권한이 다른 계정으로 각각 로그인해 확인한다.
  */
 export default async function DevComponentsPage({ searchParams }: DevComponentsPageProps) {
   const flat = flattenSearchParams(await searchParams);
@@ -72,7 +71,7 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
   };
 
   const [session, inbounds, wmsLinksResult, clientsResult] = await Promise.all([
-    getSession(),
+    requireSession(),
     getInbounds(params),
     getWmsLinks({ pageSize: 100 }),
     getClients({ pageSize: 200 }),
@@ -122,11 +121,8 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
         />
         <p className="text-xs text-muted-foreground">
           현재 세션 role: <span className="font-mono font-semibold text-foreground">{session.role}</span> (
-          {session.name} · {session.email}). CLIENT로 전환하려면{" "}
-          <code className="rounded bg-muted px-1 py-0.5">src/lib/mock/session.ts</code>의{" "}
-          <code className="rounded bg-muted px-1 py-0.5">CURRENT_USER_ID</code>를{" "}
-          <code className="rounded bg-muted px-1 py-0.5">&quot;user-05&quot;</code>로 바꾼 뒤
-          새로고침하세요 — 클라이언트 select가 사라지고 사이드바 메뉴도 6개로 줄어듭니다.
+          {session.name} · {session.email}) — 로그인 계정의 auth 레벨에서 결정됩니다(LV1=운영자).
+          CLIENT 계정으로 로그인하면 클라이언트 select가 사라지고 메뉴도 공통 6개로 줄어듭니다.
         </p>
       </section>
 

@@ -1,6 +1,6 @@
 import type { Paginated, Return, ReturnSearchParams } from "@/types";
 import { mockReturns } from "@/lib/mock/returns";
-import { getSession, resolveClientScope } from "./session";
+import { canAccessClient, requireSession, resolveClientScope } from "./session";
 import { delay, matchesKeyword, paginate, withinDateRange } from "./utils";
 
 /**
@@ -23,11 +23,11 @@ function resolveDate(row: Return, dateField?: string): string | null {
 
 export async function getReturns(params: ReturnSearchParams = {}): Promise<Paginated<Return>> {
   await delay();
-  const session = await getSession();
-  const scopedClientId = resolveClientScope(session, params.clientId);
+  const session = await requireSession();
+  const scopedClientIds = resolveClientScope(session, params.clientId);
 
   const filtered = returns.filter((row) => {
-    if (scopedClientId && row.clientId !== scopedClientId) return false;
+    if (scopedClientIds && !scopedClientIds.includes(row.clientId)) return false;
     if (params.wmsLinkId && row.wmsLinkId !== params.wmsLinkId) return false;
     if (params.country && row.country !== params.country) return false;
     if (params.status && row.status !== params.status) return false;
@@ -40,9 +40,9 @@ export async function getReturns(params: ReturnSearchParams = {}): Promise<Pagin
 
 export async function getReturn(id: string): Promise<Return | null> {
   await delay();
-  const session = await getSession();
+  const session = await requireSession();
   const row = returns.find((r) => r.id === id) ?? null;
   if (!row) return null;
-  if (session.role === "CLIENT" && row.clientId !== session.clientId) return null;
+  if (!canAccessClient(session, row.clientId)) return null;
   return row;
 }

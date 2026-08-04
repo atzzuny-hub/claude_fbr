@@ -1,7 +1,7 @@
 import type { Paginated, Sku, SkuInput, SkuSearchParams } from "@/types";
 import { mockClients } from "@/lib/mock/clients";
 import { mockSkus } from "@/lib/mock/skus";
-import { getSession, resolveClientScope } from "./session";
+import { canAccessClient, requireSession, resolveClientScope } from "./session";
 import { delay, matchesKeyword, paginate, withinDateRange } from "./utils";
 
 /**
@@ -21,11 +21,11 @@ function resolveDate(row: Sku, dateField?: string): string {
 
 export async function getSkus(params: SkuSearchParams = {}): Promise<Paginated<Sku>> {
   await delay();
-  const session = await getSession();
-  const scopedClientId = resolveClientScope(session, params.clientId);
+  const session = await requireSession();
+  const scopedClientIds = resolveClientScope(session, params.clientId);
 
   const filtered = skus.filter((sku) => {
-    if (scopedClientId && sku.clientId !== scopedClientId) return false;
+    if (scopedClientIds && !scopedClientIds.includes(sku.clientId)) return false;
     const owner = clientsById.get(sku.clientId);
     if (params.wmsLinkId && owner?.wmsLinkId !== params.wmsLinkId) return false;
     if (params.country && owner?.country !== params.country) return false;
@@ -38,10 +38,10 @@ export async function getSkus(params: SkuSearchParams = {}): Promise<Paginated<S
 
 export async function getSku(id: string): Promise<Sku | null> {
   await delay();
-  const session = await getSession();
+  const session = await requireSession();
   const sku = skus.find((s) => s.id === id) ?? null;
   if (!sku) return null;
-  if (session.role === "CLIENT" && sku.clientId !== session.clientId) return null;
+  if (!canAccessClient(session, sku.clientId)) return null;
   return sku;
 }
 

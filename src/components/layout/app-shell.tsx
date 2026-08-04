@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/data";
+import { requireSession } from "@/lib/data";
 import { Header } from "./header";
 
 interface AppShellProps {
@@ -17,7 +17,8 @@ interface AppShellProps {
  * children을 감싸기만 하면 된다 — 개별 메뉴 페이지는 셸을 신경 쓸 필요가 없다.
  */
 export async function AppShell({ children }: AppShellProps) {
-  const session = await getSession();
+  // 로그인 가드 겸 세션 조회 — 비로그인(쿠키 없음)이면 /login으로 리디렉션(PRD F010)
+  const session = await requireSession();
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">

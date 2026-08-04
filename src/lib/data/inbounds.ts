@@ -8,7 +8,7 @@ import {
 } from "@/types";
 import { mockInbounds } from "@/lib/mock/inbounds";
 import { mockClients } from "@/lib/mock/clients";
-import { getSession, resolveClientScope } from "./session";
+import { requireSession, resolveClientScope } from "./session";
 import { delay, matchesKeyword, paginate, sortItems, withinDateTimeRange } from "./utils";
 
 /**
@@ -76,12 +76,16 @@ function clientNameById(clientId: string): string | null {
 
 export async function getInbounds(params: InboundSearchParams = {}): Promise<Paginated<Inbound>> {
   await delay();
-  const session = await getSession();
-  const scopedClientId = resolveClientScope(session, undefined);
-  const scopedClientName = scopedClientId ? clientNameById(scopedClientId) : null;
+  const session = await requireSession();
+  const scopedClientIds = resolveClientScope(session, undefined);
+  // 실 계정의 clientIds(webClientIds)는 목 클라이언트 ID와 매칭되지 않으므로, 실 로그인한
+  // CLIENT는 목 목록에서 0건을 보는 게 정상이다 — 입고 목록이 실 API로 교체되면 해소된다.
+  const scopedNames = scopedClientIds
+    ? new Set(scopedClientIds.map(clientNameById).filter((name): name is string => name !== null))
+    : null;
 
   const filtered = inbounds.filter((row) => {
-    if (scopedClientName && row.clntName !== scopedClientName) return false;
+    if (scopedNames && (!row.clntName || !scopedNames.has(row.clntName))) return false;
     // URL 쿼리의 wmsLinkId는 문자열 — 행의 수치 ID(int)와 숫자로 비교한다.
     if (params.wmsLinkId && row.wmsLinkId !== Number(params.wmsLinkId)) return false;
     if (params.status && row.status !== params.status) return false;
@@ -111,12 +115,12 @@ export async function getInbounds(params: InboundSearchParams = {}): Promise<Pag
 
 export async function getInbound(idx: number): Promise<Inbound | null> {
   await delay();
-  const session = await getSession();
+  const session = await requireSession();
   const row = inbounds.find((r) => r.idx === idx) ?? null;
   if (!row) return null;
   if (session.role === "CLIENT") {
-    const scopedName = session.clientId ? clientNameById(session.clientId) : null;
-    if (!scopedName || row.clntName !== scopedName) return null;
+    const ownedNames = (session.clientIds ?? []).map(clientNameById);
+    if (!row.clntName || !ownedNames.includes(row.clntName)) return null;
   }
   return row;
 }

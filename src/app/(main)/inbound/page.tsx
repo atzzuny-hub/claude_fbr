@@ -1,6 +1,6 @@
 // PRD: F001(입고현황 조회), F012(목록 검색·엑셀 다운로드), F013(역할별 데이터 스코핑)
 // — 입고현황 페이지 (접근 권한: 공통·데이터 스코핑, 로그인 후 기본 진입 화면)
-import { getInbounds, getSession, getWmsLinks } from "@/lib/data";
+import { getInbounds, getWmsLinks, requireSession } from "@/lib/data";
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -60,7 +60,7 @@ export default async function InboundPage({ searchParams }: InboundPageProps) {
   const params: InboundSearchParams = parsed.success ? parsed.data : { page, pageSize };
 
   const [session, inbounds, exportResult, wmsLinksResult] = await Promise.all([
-    getSession(),
+    requireSession(),
     getInbounds(params),
     getInbounds({ ...params, page: 1, pageSize: EXPORT_MAX_ROWS }),
     getWmsLinks({ pageSize: 100 }),

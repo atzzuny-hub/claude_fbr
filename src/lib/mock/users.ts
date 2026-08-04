@@ -5,7 +5,8 @@ import { pad, pickDate, toDatetime } from "./seed-helpers";
 /**
  * User 목데이터 — Client 다음에 정의(clientId 참조 무결성).
  * 운영자 4명 + 클라이언트 계정 14명(client-01~client-14에 1:1 배정, ※CLAUDE.md TBD 잠정 가정).
- * user-01은 lib/mock/session.ts의 기본 목 세션(OPERATOR)으로 사용된다.
+ * 사용자 메뉴(운영자 전용) 목록 화면 전용 목데이터 — 세션은 실 로그인(httpOnly 쿠키)으로
+ * 전환되어(2026-08-04) 이 데이터와 무관하다.
  */
 
 const OPERATORS: Omit<User, "clientId" | "clientName">[] = [
