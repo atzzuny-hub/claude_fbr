@@ -1,37 +1,36 @@
-import type { LoginInput, User } from "@/types";
-import { mockUsers } from "@/lib/mock/users";
-import { delay } from "./utils";
+import type { LoginInput } from "@/types";
 
 /**
- * 인증 — Phase 1 목 로그인 (PRD F010).
- * 실제 인증(BFF 세션 발급, httpOnly 쿠키)은 Phase 2에서 이 파일 내부만 교체한다
- * (CLAUDE.md 아키텍처 원칙 2). 성공해도 세션은 만들지 않는다 — Phase 1 세션은
- * lib/mock/session.ts의 CURRENT_USER_ID로 고정이며, 로그인 성공은 화면 이동만 담당한다.
+ * 인증 — 실 로그인(2026-08-04 전환). 브라우저는 BFF(app/api/auth/*)만 호출하고,
+ * BFF가 Java API(/auth/login·/auth/logout)를 대리 호출해 httpOnly 쿠키를 관리한다.
+ * 토큰·세션 값은 이 계층(클라이언트 코드)에 절대 노출되지 않는다.
  *
- * 오류는 PRD가 정의한 2종(계정 없음/비밀번호 불일치)만 재현한다.
- * INACTIVE 계정의 로그인 차단 여부는 PRD에 없어 다루지 않는다(Phase 2 확인 대상).
+ * ※ PRD F010은 오류 2종(계정 없음/비밀번호 불일치) 구분 표시를 요구하지만, 실 API가
+ *   두 경우 모두 401 + 빈 바디로 응답해(프로브 확인) 구분이 불가능하다 — 단일 문구로
+ *   통합했다. PRD 갱신 필요 사항으로 사용자에게 보고됨.
  */
 
-/** 목 계정 공통 비밀번호 — 비밀번호 불일치 오류를 데모하기 위한 고정값 */
-export const MOCK_LOGIN_PASSWORD = "reve1234!";
-
-/** 로그인 페이지 개발용 힌트에 쓰는 대표 목 계정 이메일 (user-01, 운영자) */
-export const MOCK_LOGIN_SAMPLE_EMAIL = mockUsers[0].email;
-
-export type LoginErrorCode = "ACCOUNT_NOT_FOUND" | "PASSWORD_MISMATCH";
+export type LoginErrorCode = "INVALID_CREDENTIALS" | "SERVER_ERROR";
 
 export const LOGIN_ERROR_MESSAGE: Record<LoginErrorCode, string> = {
-  ACCOUNT_NOT_FOUND: "등록되지 않은 이메일입니다.",
-  PASSWORD_MISMATCH: "비밀번호가 일치하지 않습니다.",
+  INVALID_CREDENTIALS: "이메일 또는 비밀번호가 올바르지 않습니다.",
+  SERVER_ERROR: "로그인 처리 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
 };
 
-export type LoginResult = { ok: true; user: User } | { ok: false; error: LoginErrorCode };
+export type LoginResult = { ok: true } | { ok: false; error: LoginErrorCode };
 
 export async function login(input: LoginInput): Promise<LoginResult> {
-  await delay();
-  const email = input.email.trim().toLowerCase();
-  const user = mockUsers.find((u) => u.email.toLowerCase() === email);
-  if (!user) return { ok: false, error: "ACCOUNT_NOT_FOUND" };
-  if (input.password !== MOCK_LOGIN_PASSWORD) return { ok: false, error: "PASSWORD_MISMATCH" };
-  return { ok: true, user };
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  }).catch(() => null);
+  if (!res) return { ok: false, error: "SERVER_ERROR" };
+  if (res.ok) return { ok: true };
+  return { ok: false, error: res.status === 401 ? "INVALID_CREDENTIALS" : "SERVER_ERROR" };
+}
+
+/** 로그아웃 — BFF가 Java 로그아웃(best-effort) 후 쿠키 3종을 지운다. 호출부는 /login 이동만. */
+export async function logout(): Promise<void> {
+  await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
 }

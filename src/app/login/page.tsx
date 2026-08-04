@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { MOCK_LOGIN_PASSWORD, MOCK_LOGIN_SAMPLE_EMAIL } from "@/lib/data";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/data";
 import { BrandPanel } from "./components/brand-panel";
 import { LoginForm } from "./components/login-form";
 
@@ -9,11 +10,14 @@ export const metadata: Metadata = {
 
 /**
  * 로그인 페이지 (PRD F010, 비로그인 전용) — (main) 그룹 밖이라 AppShell 없이 렌더링된다.
+ * 실 인증(2026-08-04 전환): 제출은 BFF(/api/auth/login) → Java API로 이어지며, 이미
+ * 로그인된 세션이면 기본 진입 화면(/inbound)으로 보낸다.
  * 데스크톱: 좌 브랜드 패널 + 우 폼. lg 미만: 상단 워드마크 밴드 + 폼 단독.
  * 회원가입 경로는 없다 — 계정은 운영자가 발급한다(PRD F010).
  */
-export default function LoginPage() {
-  const isDev = process.env.NODE_ENV === "development";
+export default async function LoginPage() {
+  const session = await getSession();
+  if (session) redirect("/inbound");
 
   return (
     <main className="flex flex-1">
@@ -45,15 +49,6 @@ export default function LoginPage() {
             <p className="text-[13px] leading-relaxed break-keep text-tertiary-foreground">
               계정은 운영자가 발급합니다. 접속에 문제가 있으면 운영 관리자에게 문의하세요.
             </p>
-
-            {isDev && (
-              <div className="rounded-lg border border-dashed bg-muted/50 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
-                <p className="font-medium text-foreground/70">Phase 1 데모 계정 (개발 모드에서만 표시)</p>
-                <p className="mt-1 font-mono text-[11px]">
-                  {MOCK_LOGIN_SAMPLE_EMAIL} / {MOCK_LOGIN_PASSWORD}
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </section>

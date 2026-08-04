@@ -38,8 +38,9 @@
 ## 아키텍처 원칙
 
 1. 모든 데이터 접근은 `lib/data`의 함수를 경유한다 — 컴포넌트에서 fetch 직접 호출 금지
-2. **Phase 1(현재)**: `lib/data`는 `lib/mock`의 목데이터를 반환한다
-   **Phase 2**: `lib/data` 내부만 BFF(Route Handler) → Java API 호출로 교체한다
+2. `lib/data` 내부만 목 → BFF(Route Handler) → Java API 호출로 교체한다(호출부 불변).
+   **인증·세션은 실전환 완료**(2026-08-04, `app/api/auth/*` + httpOnly 쿠키) —
+   도메인 데이터는 아직 목이며 입고부터 순차 교체한다
 3. 브라우저 → Java API 직접 호출 금지. 반드시 Next.js Route Handler(BFF) 경유
 4. `API_BASE_URL`은 서버 전용 환경변수 — `NEXT_PUBLIC_` 접두사 사용 금지
 5. 인증/세션 토큰을 localStorage·sessionStorage에 저장하지 않는다 (httpOnly 쿠키 기반)
@@ -117,9 +118,13 @@ src/
   POST `/auth/login`(Req email/password → Res에 accessToken·refreshToken·auth 레벨 등) ·
   `/auth/logout`(Req refreshToken → true) · `/auth/token`(재발급). 토큰은 응답 바디로 오며
   브라우저에는 BFF가 httpOnly 쿠키로만 심는다(원칙 5 — JS 접근 토큰 금지).
-  **남은 확인**: ① `/auth/token` 응답 형태 ② `auth` 레벨 값 종류(예: LV1)와
-  OPERATOR/CLIENT 매핑 ③ 토큰 만료 정책 ④ 로그인 401이 계정 없음/비밀번호 불일치를
-  구분해 주는지(프로브에선 빈 바디 401)
+  `auth` 레벨은 LV1~LV9 존재, **LV1 = 운영자 확정**(사용자 확인) — 비-LV1은 CLIENT로
+  보수 매핑 중(LV2~LV9 의미 확정 시 `resolveRoleFromAuthLevel`만 갱신).
+  **남은 확인**: ① `/auth/token` 응답 형태(확인 전 리프레시 미구현 — 만료 시 재로그인)
+  ② LV2~LV9의 의미 ③ 토큰 만료 정책(쿠키 maxAge 미설정 — 브라우저 세션 수명)
+  ④ ~~로그인 401 오류 구분~~ → 구분 불가 확인(빈 바디 401): 화면은 단일 문구
+  "이메일 또는 비밀번호가 올바르지 않습니다."로 통합 — **PRD F010(오류 2종)과 어긋나
+  PRD 갱신 필요(사용자 보고됨)**
 - Java API 응답 래핑 형태(`{ code, data, message }` 여부), Swagger 문서
 - NEW 제출 시 이메일 발송 주체(Java API vs Next.js Route Handler)
 - 다국어(i18n) 적용 여부, Nginx/HTTPS 구성

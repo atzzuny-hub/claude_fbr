@@ -1,16 +1,15 @@
 import Link from "next/link";
-import { LogOut } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Session } from "@/lib/data/session";
 import { USER_ROLE_LABEL } from "@/types";
+import { LogoutMenuItem } from "./logout-menu-item";
 import { TopNav } from "./top-nav";
 
 interface HeaderProps {
@@ -24,8 +23,8 @@ interface HeaderProps {
  * 사용자 정보(이름/이메일/역할)와 로그아웃은 아바타 드롭다운 안으로 이동 — 헤더 우측은
  * 레퍼런스처럼 원형 아바타 하나만 노출한다.
  *
- * 로그아웃은 Phase 1 목(mock): 실제 세션 종료 API 없이 /login으로 이동만 한다.
- * Phase 2 교체 지점: 로그아웃 아이템을 세션 종료 요청(BFF) 후 이동으로 교체.
+ * 로그아웃은 실동작(2026-08-04 전환): LogoutMenuItem이 BFF 로그아웃(쿠키 삭제) 후
+ * /login으로 이동한다.
  */
 export function Header({ session }: HeaderProps) {
   const initial = session.name.slice(0, 1).toUpperCase();
@@ -75,10 +74,7 @@ export function Header({ session }: HeaderProps) {
               <Badge variant="secondary">{USER_ROLE_LABEL[session.role]}</Badge>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem render={<Link href="/login" />}>
-              <LogOut aria-hidden="true" />
-              로그아웃
-            </DropdownMenuItem>
+            <LogoutMenuItem />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

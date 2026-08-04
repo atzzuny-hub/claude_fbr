@@ -7,7 +7,9 @@ import { CircleAlert, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LOGIN_ERROR_MESSAGE, login } from "@/lib/data";
+// 배럴(@/lib/data)이 아니라 모듈 직접 import — 배럴은 next/headers를 쓰는 세션 모듈을
+// 포함해 클라이언트 번들에 넣을 수 없다(서버 컴포넌트 전용).
+import { LOGIN_ERROR_MESSAGE, login } from "@/lib/data/auth";
 import { loginInputSchema } from "@/types";
 
 interface FieldErrors {
