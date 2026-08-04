@@ -3,6 +3,7 @@
 
 export * from "./common";
 export * from "./status";
+export * from "./auth";
 export * from "./wms-link";
 export * from "./client";
 export * from "./sku";

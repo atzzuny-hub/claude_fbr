@@ -91,6 +91,7 @@
   --color-warning-bg: var(--warning-bg);
   --color-danger: var(--danger);
   --color-danger-bg: var(--danger-bg);
+  --color-danger-fg: var(--danger-fg);
   --color-info: var(--info);
   --color-info-bg: var(--info-bg);
 
@@ -151,6 +152,10 @@
   --warning-bg: #fdf3e7;
   --danger: #e5484d;
   --danger-bg: #fdecec;
+  /* danger의 "텍스트 전용" 진한 단 — #e5484d는 danger-bg/페이지 배경 위 본문 크기에서
+   * WCAG AA(4.5:1) 미달(3.4~3.9:1)이라, 오류 문구 텍스트는 이 값(4.5:1 충족)을 쓴다.
+   * 배지/아이콘/보더 등 굵거나 큰 용도는 기존 --danger 유지. */
+  --danger-fg: #c93338;
   --info: #2563eb;
   --info-bg: #eaf1fe;
 
@@ -233,6 +238,8 @@
   --warning-bg: oklch(0.45 0.1 70 / 25%);
   --danger: #f87171;
   --danger-bg: oklch(0.45 0.12 25 / 25%);
+  /* 다크에서는 밝은 danger가 어두운 배경 위에서 이미 AA를 충족 — 별도 단 불필요 */
+  --danger-fg: var(--danger);
   --info: #60a5fa;
   --info-bg: oklch(0.45 0.1 250 / 25%);
 

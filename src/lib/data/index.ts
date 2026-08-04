@@ -3,6 +3,7 @@
 // Phase 2: 각 파일 내부만 BFF(Route Handler) 호출로 교체한다(이 배럴의 시그니처는 유지).
 
 export * from "./session";
+export * from "./auth";
 export * from "./wms-links";
 export * from "./clients";
 export * from "./skus";
