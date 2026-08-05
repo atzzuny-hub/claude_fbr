@@ -4,6 +4,11 @@ import { useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/common/data-table";
+import {
+  StickyDetailFootTd,
+  StickyDetailTd,
+  StickyDetailTh,
+} from "@/components/common/sticky-detail-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { CountryCell } from "@/components/common/country-flag";
 import { DateTimeCell } from "@/components/common/date-time-cell";
@@ -77,7 +82,7 @@ export function InboundTable({
   const [detailRow, setDetailRow] = useState<Inbound | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // 컬럼 7개 — Swagger 응답 필드 기준(접수번호=ganNo 하나로 통합, 날짜는 3종 —
+  // 컬럼 8개 — Swagger 응답 필드 기준(주문번호=ganNo · 접수번호=dataId, 날짜는 3종 —
   // 배송일(sipDt)은 사용자 확정으로 제외).
   // 여기서 빠진 클라이언트·제품·수량은 행 확장(+) 상세와 CSV로 옮겼다.
   const columns: DataTableColumn<Inbound>[] = [
@@ -190,10 +195,8 @@ function InboundDetail({ row }: { row: Inbound }) {
           제품 목록 ({row.prodList.length}종) · 전체 {row.prodQty.toLocaleString()}개
         </div>
         {/* 넓은 표는 가로 스크롤, 제품이 5종을 넘으면 세로도 이 박스 안에서만 스크롤
-         * (행 확장이 화면을 통째로 밀어내지 않게). 스크롤 중에도 헤더와 합계(tfoot)는
-         * sticky로 고정 — 배경은 확장 패널(bg-row-alt 틴트)과 같아 보이도록 카드색 위에
-         * 틴트를 겹친다(다크 모드 틴트가 반투명이라 밑 행이 비치는 것 방지). 경계선은
-         * sticky에서 border가 같이 밀려 올라가므로 inset shadow로 그린다. */}
+         * (행 확장이 화면을 통째로 밀어내지 않게). 스크롤 중 헤더·합계(tfoot) 고정과
+         * 배경·경계선 트릭은 공용 StickyDetail* 셀(components/common/sticky-detail-table) 몫. */}
         <div
           className={cn(
             "overflow-x-auto",
@@ -203,46 +206,46 @@ function InboundDetail({ row }: { row: Inbound }) {
           <table className="w-full min-w-160 border-collapse text-xs">
             <thead>
               <tr className="text-tertiary-foreground">
-                <DetailTh>SKU</DetailTh>
-                <DetailTh className="text-right">입고 전체 수량</DetailTh>
-                <DetailTh className="text-right">사용가능수량</DetailTh>
-                <DetailTh className="text-right">오류수량</DetailTh>
-                <DetailTh>단위</DetailTh>
-                <DetailTh>상품명</DetailTh>
+                <StickyDetailTh>SKU</StickyDetailTh>
+                <StickyDetailTh className="text-right">입고 전체 수량</StickyDetailTh>
+                <StickyDetailTh className="text-right">사용가능수량</StickyDetailTh>
+                <StickyDetailTh className="text-right">오류수량</StickyDetailTh>
+                <StickyDetailTh>단위</StickyDetailTh>
+                <StickyDetailTh>상품명</StickyDetailTh>
               </tr>
             </thead>
             <tbody>
               {row.prodList.map((prod, index) => (
                 <tr key={`${prod.sku}-${index}`} className="border-b border-border/60">
-                  <DetailTd className="font-mono">{prod.sku}</DetailTd>
-                  <DetailTd className="text-right font-mono font-medium tabular-nums">
+                  <StickyDetailTd className="font-mono">{prod.sku}</StickyDetailTd>
+                  <StickyDetailTd className="text-right font-mono font-medium tabular-nums">
                     {prod.expQty.toLocaleString()}
-                  </DetailTd>
-                  <DetailTd className="text-right font-mono tabular-nums">
+                  </StickyDetailTd>
+                  <StickyDetailTd className="text-right font-mono tabular-nums">
                     {prod.qty.toLocaleString()}
-                  </DetailTd>
-                  <DetailTd className="text-right font-mono tabular-nums text-muted-foreground">
+                  </StickyDetailTd>
+                  <StickyDetailTd className="text-right font-mono tabular-nums text-muted-foreground">
                     {prod.excQty.toLocaleString()}
-                  </DetailTd>
-                  <DetailTd>{prod.unit}</DetailTd>
-                  <DetailTd>{prod.productName}</DetailTd>
+                  </StickyDetailTd>
+                  <StickyDetailTd>{prod.unit}</StickyDetailTd>
+                  <StickyDetailTd>{prod.productName}</StickyDetailTd>
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="font-medium text-foreground">
-                <DetailFootTd>합계</DetailFootTd>
-                <DetailFootTd className="text-right font-mono tabular-nums">
+                <StickyDetailFootTd>합계</StickyDetailFootTd>
+                <StickyDetailFootTd className="text-right font-mono tabular-nums">
                   {totalInbound.toLocaleString()}
-                </DetailFootTd>
-                <DetailFootTd className="text-right font-mono tabular-nums">
+                </StickyDetailFootTd>
+                <StickyDetailFootTd className="text-right font-mono tabular-nums">
                   {totalAvailable.toLocaleString()}
-                </DetailFootTd>
-                <DetailFootTd className="text-right font-mono tabular-nums">
+                </StickyDetailFootTd>
+                <StickyDetailFootTd className="text-right font-mono tabular-nums">
                   {totalError.toLocaleString()}
-                </DetailFootTd>
-                <DetailFootTd />
-                <DetailFootTd />
+                </StickyDetailFootTd>
+                <StickyDetailFootTd />
+                <StickyDetailFootTd />
               </tr>
             </tfoot>
           </table>
@@ -252,38 +255,3 @@ function InboundDetail({ row }: { row: Inbound }) {
   );
 }
 
-/** 확장 패널과 같은 색으로 보이는 불투명 sticky 배경 — 카드색 위에 row-alt 틴트를 겹친다 */
-const DETAIL_STICKY_BG = "bg-card bg-[linear-gradient(var(--color-row-alt),var(--color-row-alt))]";
-
-function DetailTh({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return (
-    <th
-      className={cn(
-        "sticky top-0 z-10 px-3 py-2 text-left font-medium whitespace-nowrap shadow-[inset_0_-1px_0_0_var(--color-border)]",
-        DETAIL_STICKY_BG,
-        className,
-      )}
-    >
-      {children}
-    </th>
-  );
-}
-
-function DetailTd({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <td className={cn("px-3 py-2 text-left whitespace-nowrap", className)}>{children}</td>;
-}
-
-/** 합계(tfoot) 셀 — 세로 스크롤 중에도 바닥에 고정. 윗줄은 sticky에서도 따라오게 inset shadow로. */
-function DetailFootTd({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return (
-    <td
-      className={cn(
-        "sticky bottom-0 z-10 px-3 py-2 text-left whitespace-nowrap shadow-[inset_0_1px_0_0_var(--color-border)]",
-        DETAIL_STICKY_BG,
-        className,
-      )}
-    >
-      {children}
-    </td>
-  );
-}

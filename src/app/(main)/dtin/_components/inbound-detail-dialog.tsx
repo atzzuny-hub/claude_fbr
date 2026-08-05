@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { StatusStepper, type StatusStep } from "@/components/common/status-stepper";
+import { StickyDetailTh } from "@/components/common/sticky-detail-table";
 import { formatEpochDateTime } from "@/lib/utils/datetime";
 import { INBOUND_STATUS_FLOW, INBOUND_STATUS_LABEL, type Inbound } from "@/types";
 
@@ -31,9 +32,6 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
     key: status,
     label: INBOUND_STATUS_LABEL[status],
   }));
-
-  
-  
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -69,10 +67,8 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
                     ? `${INBOUND_STATUS_LABEL[row.status]} (${row.statusOriginalCode})`
                     : INBOUND_STATUS_LABEL[row.status]
                 }
-              />              
+              />
               <DetailField label="접수번호" value={row.dataId ?? EMPTY} />
-              
-              
               <DetailField label="고객명" value={row.contactName ?? EMPTY} mono />
               <DetailField label="고객연락처" value={row.contactTel ?? EMPTY} mono />
               <DetailField label="입고접수일" value={formatEpochDateTime(row.reqDt, EMPTY)} mono />
@@ -85,20 +81,14 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
                 제품리스트 ({row.prodList.length}) · 상품 전체 수량 {row.prodQty.toLocaleString()}개
               </h3>
               {/* 제품이 많으면 이 박스 안에서만 세로 스크롤(팝업 전체가 늘어나지 않게).
-               * 헤더는 sticky로 고정 — thead/tr 대신 각 th에 걸어야 브라우저 간 동작이
-               * 일정하다(DataTable과 동일 방식). border-collapse에서는 sticky 셀의
-               * 경계선이 같이 밀려 올라가므로 헤더 밑줄은 inset shadow로 그리고, 다크
-               * 모드의 row-alt 틴트가 반투명이라 불투명 카드색 위에 겹쳐 비침을 막는다. */}
+               * 헤더 고정(sticky·불투명 배경·inset shadow 경계선)은 공용 StickyDetailTh 몫
+               * — 트릭 설명은 components/common/sticky-detail-table.tsx 참조. */}
               <div className="max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-border">
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="text-xs text-tertiary-foreground">
-                      <th className="sticky top-0 z-10 bg-card bg-[linear-gradient(var(--color-row-alt),var(--color-row-alt))] px-4 py-2 text-left font-medium shadow-[inset_0_-1px_0_0_var(--color-border)]">
-                        상품명
-                      </th>
-                      <th className="sticky top-0 z-10 bg-card bg-[linear-gradient(var(--color-row-alt),var(--color-row-alt))] px-4 py-2 text-right font-medium shadow-[inset_0_-1px_0_0_var(--color-border)]">
-                        수량
-                      </th>
+                      <StickyDetailTh className="px-4">상품명</StickyDetailTh>
+                      <StickyDetailTh className="px-4 text-right">수량</StickyDetailTh>
                     </tr>
                   </thead>
                   <tbody>
