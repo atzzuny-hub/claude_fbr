@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/common/data-table";
@@ -9,20 +8,21 @@ import { StatusBadge } from "@/components/common/status-badge";
 import { CountryCell } from "@/components/common/country-flag";
 import { DateTimeCell } from "@/components/common/date-time-cell";
 import { EXCEL_BUTTON_TONE, exportRowsToCsv } from "@/components/common/excel-download-button";
-import { mergeSearchParams } from "@/lib/utils/search-params";
 import { cn } from "@/lib/utils";
 import { INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
 import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
 import { InboundDetailDialog } from "./inbound-detail-dialog";
 
 /**
- * StatusBadge tone 매핑 — 예정(info)→대기(warning)→입고(success), StatusBadge 권장 매핑을 따른다.
+ * StatusBadge tone 매핑 — 예정(info)→대기(warning)→작업중(info)→입고(success), StatusBadge
+ * 권장 매핑을 따른다(작업중은 "진행 중" 의미라 예정과 같은 파랑 계열).
  * 취소는 파이프라인 밖 종료 상태라 붉은 톤(destructive), 알 수 없음(UNKNOW — 원본 코드 매핑
  * 실패)은 중립 톤으로 조용히 표시한다.
  */
 const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive" | "neutral"> = {
   PLAN: "info",
   STANDBY: "warning",
+  WORK: "info",
   COMPLETED: "success",
   CANCELED: "destructive",
   UNKNOW: "neutral",
@@ -38,20 +38,37 @@ interface InboundTableProps {
   total: number;
   page: number;
   pageSize: number;
-  /** 부모(서버 컴포넌트)가 이미 읽은 현재 필터값 — 페이지/페이지크기만 바꿀 때 나머지를 보존한다 */
-  currentQuery: Record<string, string>;
-  /** 표 상단 툴바에 놓을 액션(예: 검색결과 다운로드 버튼) — page.tsx가 전체 검색결과로 렌더해 넘긴다 */
+  /** 현재 정렬 상태 — 부모(InboundScreen)의 검색 상태에서 내려온다(URL에 싣지 않는다) */
+  sort?: string;
+  order?: "asc" | "desc";
+  /** 재조회 중 표시 — DataTable loading으로 전달(조회·페이지 이동 등 서버 액션 진행 중) */
+  loading?: boolean;
+  /** 페이지/페이지크기/정렬 변경 → 부모가 서버 액션으로 재조회한다(URL 불변) */
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+  onSortChange: (key: string, order: "asc" | "desc" | null) => void;
+  /** 표 상단 툴바에 놓을 액션(예: 검색결과 다운로드 버튼) */
   toolbarActions?: React.ReactNode;
 }
 
 /**
- * DataTable을 /inbound 화면에 배선하는 얇은 클라이언트 래퍼.
- * DataTable/ExcelDownloadButton처럼 함수 props를 받는 컴포넌트는 서버 컴포넌트(page.tsx)에서
- * 직접 사용할 수 없어(RSC 경계) 이 래퍼를 거친다.
+ * DataTable을 /inbound 화면에 배선하는 얇은 래퍼 — 컬럼 정의·행 상세·행 다운로드 담당.
+ * 페이지네이션·정렬은 콜백으로 부모(InboundScreen)에 위임한다: 검색 조건을 URL에 싣지
+ * 않는 화면이라(사용자 확정 2026-08-05) 여기서 내비게이션하지 않는다.
  */
-export function InboundTable({ data, total, page, pageSize, currentQuery, toolbarActions }: InboundTableProps) {
-  const router = useRouter();
-
+export function InboundTable({
+  data,
+  total,
+  page,
+  pageSize,
+  sort,
+  order,
+  loading,
+  onPageChange,
+  onPageSizeChange,
+  onSortChange,
+  toolbarActions,
+}: InboundTableProps) {
   /*
    * 행 클릭 상세 팝업 — 목록이 이미 받아 둔 행을 그대로 넘긴다(추가 조회 없음).
    * detailRow를 open과 따로 두는 이유: 닫히는 애니메이션 동안에도 내용이 남아 있어야 한다
@@ -59,15 +76,6 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
    */
   const [detailRow, setDetailRow] = useState<Inbound | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-
-  function navigate(updates: Record<string, string | number | undefined>) {
-    const qs = mergeSearchParams(new URLSearchParams(currentQuery), updates);
-    router.push(qs ? `/inbound?${qs}` : "/inbound");
-  }
-
-  // 현재 정렬 상태 — URL 쿼리에서 읽는다(order는 asc/desc만 인정).
-  const sort = currentQuery.sort || undefined;
-  const order = currentQuery.order === "desc" ? "desc" : currentQuery.order === "asc" ? "asc" : undefined;
 
   // 컬럼 7개 — Swagger 응답 필드 기준(접수번호=ganNo 하나로 통합, 날짜는 3종 —
   // 배송일(sipDt)은 사용자 확정으로 제외).
@@ -109,19 +117,14 @@ export function InboundTable({ data, total, page, pageSize, currentQuery, toolba
         total={total}
         page={page}
         pageSize={pageSize}
-        onPageChange={(nextPage) => navigate({ page: nextPage })}
-        onPageSizeChange={(nextPageSize) => navigate({ pageSize: nextPageSize, page: 1 })}
-        // 헤더 클릭 정렬 — URL 쿼리(sort/order)로 서버 정렬. 오름→내림→해제 순환.
-        // 해제(nextOrder=null)면 sort/order를 URL에서 지운다(기본 순서로 복귀). 항상 첫 페이지로.
+        loading={loading}
+        onPageChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
+        // 헤더 클릭 정렬 — 오름→내림→해제 순환. 해제(null)를 포함해 부모가 검색 상태를
+        // 갱신하고 서버 액션으로 재조회한다(항상 첫 페이지로 — 부모 핸들러 몫).
         sort={sort}
         order={order}
-        onSortChange={(key, nextOrder) =>
-          navigate({
-            sort: nextOrder ? key : undefined,
-            order: nextOrder ?? undefined,
-            page: 1,
-          })
-        }
+        onSortChange={onSortChange}
         // 행 확장(+) 상세 — 고객명·연락처 + 입고 상품 리스트(합계 포함).
         // 입고상태 파이프라인은 추후 상세화면으로 이동 예정이라 여기서는 제외한다.
         renderDetail={(row) => <InboundDetail row={row} />}

@@ -16,7 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { buildQueryString } from "@/lib/utils/search-params";
-import { toDateInputValue } from "@/lib/utils/datetime";
+import { recentPeriodUtc } from "@/lib/utils/datetime";
 import type { UserRole } from "@/types";
 
 /** select 전체 옵션 sentinel — "" 값은 Base UI Select item과 충돌해 별도 문자열을 쓴다 */
@@ -26,16 +26,15 @@ const ALL = "ALL";
 const DEFAULT_PERIOD_DAYS = 7;
 
 /**
- * 기간 초기값 — 시작 = 오늘-1주, 종료 = 오늘 (date 값 "YYYY-MM-DD").
+ * 기간 초기값 — 시작 = 오늘-1주, 종료 = 오늘 (date 값 "YYYY-MM-DD", **UTC 기준**).
+ * 이 시스템의 날짜 축은 UTC+0 하나다(응답 표시·Req 변환·서버 기본 기간 전부) — 여기만
+ * 브라우저 로컬(KST 등)로 계산하면 새벽 시간대에 서버가 채운 기본 기간과 하루 어긋난다.
  * 기간은 날짜 단위로만 입력받는다(사용자 확정: 시간 불필요). Req의 startDt/endDt는
- * datetime 정밀도지만, 조회 필터가 날짜만 있는 값을 시작 00:00 / 종료 23:59로 확장한다
- * (lib/data/utils.withinDateTimeRange — Phase 2 BFF 변환도 같은 규칙).
+ * datetime 정밀도지만, 조회 필터가 날짜만 있는 값을 시작 00:00 / 종료 23:59:59로 확장한다
+ * (lib/data — 목 필터와 Phase 2 Req 변환이 같은 규칙).
  */
 function defaultPeriod(): { from: string; to: string } {
-  const today = new Date();
-  const from = new Date(today);
-  from.setDate(from.getDate() - DEFAULT_PERIOD_DAYS);
-  return { from: toDateInputValue(from), to: toDateInputValue(today) };
+  return recentPeriodUtc(DEFAULT_PERIOD_DAYS);
 }
 
 /**
@@ -84,8 +83,12 @@ export interface SearchPanelValues {
 }
 
 export interface SearchPanelProps {
-  /** 조회 시 router.push할 목록 화면 경로 (예: "/inbound") */
-  basePath: string;
+  /**
+   * 조회 시 router.push할 목록 화면 경로 (예: "/outbound") — URL 모드.
+   * 생략하면 **상태 모드**: 내비게이션 없이 onSearch 콜백만 호출한다. 검색 조건을 URL에
+   * 싣지 않는 화면(입고 — 사용자 확정 2026-08-05, URL은 경로 고정)이 이 모드를 쓴다.
+   */
+  basePath?: string;
   /** 세션 role — OPERATOR만 클라이언트/국가 select를 렌더링한다(CLIENT는 자동 스코핑) */
   role: UserRole;
   /** WMS LINK select 옵션 — getWmsLinks() 결과를 페이지(서버)에서 매핑해 전달. 미지정 시 필드 숨김 */
@@ -106,7 +109,11 @@ export interface SearchPanelProps {
   keywordPlaceholder?: string;
   /** 새로고침/뒤로가기 시에도 값이 유지되도록, 페이지가 읽은 현재 searchParams를 그대로 주입 */
   defaultValues?: SearchPanelValues;
-  /** router.push 외에 추가로 실행할 콜백(선택) — 값은 "전체" 선택 시 undefined로 정규화되어 전달 */
+  /**
+   * 조회/초기화 시 호출되는 콜백 — 상태 모드(basePath 미지정)의 유일한 전달 경로이고,
+   * URL 모드에서는 router.push에 더해 실행된다. 값은 "전체" 선택 시 undefined로 정규화되어
+   * 전달되며, 초기화 시에는 패널이 복원한 기본값(기간 1주 등)이 그대로 온다.
+   */
   onSearch?: (query: SearchPanelValues) => void;
   className?: string;
 }
@@ -155,11 +162,12 @@ export function SearchPanel({
   const [keyword, setKeyword] = useState(defaultValues?.keyword ?? "");
 
   /*
-   * 기간 초기값(시작일 = 오늘-1주, 종료일 = 오늘) 채우기.
-   * 렌더 중에 new Date()로 계산하지 않는 이유: 이 컴포넌트는 SSR도 거치므로 서버와 브라우저의
-   * 시간대가 다르면(예: UTC 서버 배포) "오늘"이 서로 달라 hydration이 어긋난다 — 마운트 후
-   * 브라우저 로컬 기준으로 한 번만 채운다. URL에 기간이 이미 있으면(조회한 화면 새로고침·
-   * 링크 공유 등) 그 값이 우선이므로 건드리지 않는다.
+   * 기간 초기값(시작일 = 오늘-1주, 종료일 = 오늘, UTC) 채우기.
+   * 렌더 중에 시계를 읽지 않는 이유: 렌더 중 Date.now()는 순수성 규칙 위반(react-hooks 린트)
+   * 이고 SSR 마크업과 어긋날 수 있다 — 마운트 후 한 번만 채운다. 날짜 계산은 UTC 기준이라
+   * 서버·브라우저 어디서 하든 같은 값이다(시간대 축은 UTC+0 하나 — defaultPeriod 주석 참조).
+   * URL에 기간이 이미 있으면(조회한 화면 새로고침·링크 공유 등) 그 값이 우선이므로 건드리지
+   * 않는다. (입고처럼 페이지가 서버에서 기본 기간을 항상 채우는 화면에서는 이 효과가 스킵된다)
    */
   useLayoutEffect(() => {
     if (defaultValues?.dateFrom || defaultValues?.dateTo) return;
@@ -217,8 +225,10 @@ export function SearchPanel({
 
   function handleSearch() {
     const values = resolveValues();
-    const qs = buildQueryString({ ...values, page: 1 });
-    router.push(qs ? `${basePath}?${qs}` : basePath);
+    if (basePath) {
+      const qs = buildQueryString({ ...values, page: 1 });
+      router.push(qs ? `${basePath}?${qs}` : basePath);
+    }
     onSearch?.(values);
   }
 
@@ -233,8 +243,14 @@ export function SearchPanel({
     setClientId(ALL);
     setCountry(ALL);
     setKeyword("");
-    router.push(basePath);
-    onSearch?.({});
+    if (basePath) router.push(basePath);
+    // 상태 모드 부모가 초기 상태를 별도 계산하지 않도록, 패널이 복원한 실제 값을 그대로 알린다
+    // (기간 = 기본 1주 · 기준일자 = 첫 옵션 · 나머지 = 전체/빈값).
+    onSearch?.({
+      dateFrom: period.from,
+      dateTo: period.to,
+      dateField: hasDateFieldFilter ? (dateFieldOptions[0]?.value ?? undefined) : undefined,
+    });
   }
 
   return (

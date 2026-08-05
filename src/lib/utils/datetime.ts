@@ -28,8 +28,9 @@ export function formatDateTime(value: string | null | undefined, fallback = "-")
 
 /*
  * ── epoch 밀리초(UTC) 표기 ────────────────────────────────────────
- * 입고 목록 API(Swagger 확정)는 날짜를 UTC(+00:00) epoch 밀리초로 준다. UTC 그대로 잘라
- * 표기하므로 서버·브라우저 어디서 렌더해도 같은 결과다(하이드레이션 안전).
+ * 도메인 모델의 날짜는 UTC(+00:00) epoch 밀리초다(실서버 와이어는 초 — lib/data가
+ * ms로 정규화해서 넘어온다). UTC 그대로 잘라 표기하므로 서버·브라우저 어디서 렌더해도
+ * 같은 결과다(하이드레이션 안전).
  * 표시 시간대 정책(현지 창고/KST 변환 여부)은 TBD — 정책이 정해지면 이 함수들만 바꾼다.
  */
 
@@ -52,13 +53,16 @@ export function formatEpochDateTime(ms: number | null | undefined, fallback = "-
 }
 
 /**
- * Date → <input type="date"> 값("YYYY-MM-DD", 로컬 시간대 기준).
- * toISOString()은 UTC로 변환하므로 자정 전후나 해외 시간대에서 날짜가 하루 밀린다 —
- * 로컬 연/월/일을 직접 조립한다. (브라우저에서 "오늘" 같은 상대 날짜를 만들 때 사용)
+ * 최근 N일 기간("YYYY-MM-DD" 쌍, UTC 기준) — 시작일 = 오늘-N일, 종료일 = 오늘.
+ * 목록 화면의 기본 기간(입고: 최근 1주 — 사용자 확정 2026-08-05)을 만들 때 쓴다:
+ * 서버(page.tsx 첫 진입)와 브라우저(SearchPanel 초기화 버튼)가 같은 함수를 써서 같은 값을
+ * 얻는다. UTC인 이유: 이 시스템의 날짜 축은 UTC+0 하나다(응답 epoch 표시·Req epoch 변환
+ * 전부) — "오늘"만 로컬(KST 등)로 계산하면 새벽 시간대에 하루 어긋난다.
  */
-export function toDateInputValue(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+export function recentPeriodUtc(days: number): { from: string; to: string } {
+  const now = Date.now();
+  return {
+    from: new Date(now - days * 86_400_000).toISOString().slice(0, 10),
+    to: new Date(now).toISOString().slice(0, 10),
+  };
 }
