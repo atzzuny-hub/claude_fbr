@@ -29,6 +29,23 @@ export function countryLabel(code: string): string {
   return COUNTRY_LABEL[code as Country] ?? code;
 }
 
+// ── 와이어(Res 원문) 정규화 공통 헬퍼 ─────────────────────────────
+// 실서버 와이어의 공통 특성(입고에서 실측 확정 2026-08-05, 같은 Java 관례라 도메인 공유):
+// 날짜는 epoch "초" · 값 없음 = 0, 문자열은 null과 ""가 섞여 온다. 각 도메인의
+// toDomain* 변환(types/inbound.ts·outbound.ts)이 이 헬퍼로 ms·null로 통일한다.
+
+/** epoch 초 → ms. 0 = 값 없음(실측: 미도래 단계) → null. */
+export function wireEpochToMs(sec: number | null): number | null {
+  return sec ? sec * 1000 : null;
+}
+
+/** 빈 문자열도 값 없음 → null. 와이어는 없는 문자열을 null과 ""로 섞어 준다(실측 —
+ * 같은 필드가 행에 따라 null이기도 ""이기도 하다). 화면의 대시 폴백(?? "—")이 한 가지
+ * 경우(null)만 보게 여기서 통일한다. */
+export function wireTextToNull(text: string | null): string | null {
+  return text && text.trim() !== "" ? text : null;
+}
+
 // ── Java API 공통 에러 바디 ────────────────────────────────────────
 // 프로브로 확인(2026-08-04, GET /dtin 무토큰 401 응답): 에러는 { code, data, message }
 // 래핑이 아니라 아래 형태다. errorCode(예: "1003" = 액세스 토큰 오류)가 판별 키.

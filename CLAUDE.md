@@ -119,6 +119,17 @@ src/
   COUNTRY 4개국) — 입고 행의 cntyCd는 열린 문자열로 두고 표시가 폴백한다(`countryLabel`).
   행에 클라이언트 ID가 없으므로(clntName뿐)
   CLIENT 격리는 서버 스코핑 전제 — Phase 1 목은 lib/data가 이름으로 잇는다
+- **Outbound도 Swagger 확정(2026-08-06, 로컬 Swagger `GET /dtob` — 타입·목·lib/data 정합
+  완료)**: 응답 = `DataOutboundRes` 배열 · 건수 `/dtob/cnt`(숫자) · 엑셀 `/dtob/dn`(Req는
+  목록과 동일). 도메인 모델은 응답 스키마 그대로(types/outbound.ts) + 입고와 동일한 와이어
+  정규화(초→ms · 0→null · 미확정 status/delivery는 UNKNOW 강등 — 정규화 헬퍼는
+  types/common.ts로 공용화). 입고와 다른 점: 상태 축이 2개(status 출고상태 + delivery
+  배송상태·nullable), Req의 status/delivery 필터는 **배열**(다중 선택), searchDt =
+  `ORDER_DT`(주문일)|`DELIVERY_DT`(배송일) enum·라벨까지 문서 확정. **코드값 확정**:
+  status = PEND|PICK|PACK|COMPLETED|CANCELED|RETURNED|P_RETURNED|UNKNOW · delivery =
+  DELIVERING|DELIVERED|COMPLETED|RETURNED|UNKNOW — 단 **한국어 표시명은 여전히 설계값**
+  (status.ts에 잠정 라벨 — 확인 필요, 아래 TBD). 실연동(BFF·화면)은 미착수 — lib/data는
+  목 경로만(wmsLinkId=-100 센티널 등 입고 확정 관례의 출고 적용 여부는 실연동 시 검증)
 - Client(마켓) 모델은 wmsLinkId로 소속 WMS에 귀속 (WmsLink 1 : Client N) — country는 WmsLink 속성, 물류 행에는 표시용 포함
 
 ## 기술 스택
@@ -185,6 +196,19 @@ src/
   (=HTTP 바디)를 그대로 사용 — 바디가 곧 페이로드. `/dtin` = 행 배열, `/dtin/cnt` = 숫자.
   부수 확정(레거시 관례): 목록 페이지 파라미터는 **0-기반**(`pageNo === 0`이 1페이지),
   건수는 1페이지 요청일 때만 조회. Swagger 문서 자체는 여전히 미확보(확정분은 사용자 제공)
+- **출고(/dtob) 확인 필요 사항 (Swagger 확인 2026-08-06 이후 잔여)**
+  - 출고상태·배송상태의 **한국어 표시명**: 코드값은 확정이나 라벨은 전부 설계값
+    (status.ts 잠정: PEND 대기 · PICK 피킹 · PACK 패킹 · COMPLETED 출고 · RETURNED 반품 ·
+    P_RETURNED 부분반품 / delivery: DELIVERING 배송중 · DELIVERED 배송완료 · COMPLETED 완료 ·
+    RETURNED 반품) — 현행 화면 대조 후 확정. 특히 delivery의 DELIVERED와 COMPLETED 의미
+    차이 미확인(구매확정 추정)
+  - **Req·Res 예시 불일치 2건(백엔드 확인)**: Req status 예시에 `HOLDED`가 있는데 Res
+    enum에 없음(반대로 RETURNED/P_RETURNED는 Req 예시에 없음) · Req delivery 예시에
+    `CANCELED`가 있는데 Res enum에 없음 — 필터(다중 선택)는 확인 전까지 Res 기반으로 구성
+  - 금액 5종(totalAmount 등)의 통화 단위: 응답에 통화 필드가 없다 — 마켓/국가 통화로
+    표시할지 확인 필요
+  - releaseDt(출고상태 변경일)·regDt는 문서상 non-null — 입고 전례(0=값 없음)에 대비해
+    nullable로 모델링했으며 실측으로 확인
 - NEW 제출 시 이메일 발송 주체(Java API vs Next.js Route Handler)
 - 다국어(i18n) 적용 여부, Nginx/HTTPS 구성
 - ~~클라이언트 로그인 계정 ↔ 마켓 관계~~ → **1:N 확정**(사용자 확인 2026-08-04):
@@ -278,7 +302,8 @@ src/
   BFF 전환, 원칙 6·7 — 서버 액션 금지)**(2026-08-05) → **입고 엑셀 서버 다운로드 전환
   완료**(2026-08-05, 행 상세 GET `/api/dtin/dn/{idx}` · 검색결과 전체 GET `/api/dtin/dn`
   파일 BFF — 목 폴백은 CSV 유지) → **구글 시트 내보내기 추가**(2026-08-05, PRD 외
-  사용자 요청 — 아래 TBD 참조) → 나머지 도메인(다음: 출고 `/dtob`) 순
+  사용자 요청 — 아래 TBD 참조) → **출고(/dtob) 타입·목데이터 Swagger 정합**(2026-08-06,
+  Res/Req 계약 반영 — BFF·화면 조립 전 단계) → 나머지 도메인(출고 BFF·화면 조립부터) 순
 
 ## 명령어
 

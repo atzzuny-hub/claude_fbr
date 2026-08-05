@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { countryLabel } from "./common";
+import { countryLabel, wireEpochToMs, wireTextToNull } from "./common";
 import { INBOUND_STATUS, inboundStatusFilterSchema, inboundStatusSchema } from "./status";
 
 /**
@@ -76,19 +76,8 @@ export const wireInboundSchema = inboundSchema.extend({
 });
 export type WireInbound = z.infer<typeof wireInboundSchema>;
 
-/** epoch 초 → ms. 0 = 값 없음(실측: 미도래 단계) → null. */
-function wireEpochToMs(sec: number | null): number | null {
-  return sec ? sec * 1000 : null;
-}
-
-/** 빈 문자열도 값 없음 → null. 와이어는 없는 문자열을 null과 ""로 섞어 준다(실측 —
- * 같은 필드가 행에 따라 null이기도 ""이기도 하다). 화면의 대시 폴백(?? "—")이 한 가지
- * 경우(null)만 보게 여기서 통일한다. */
-function wireTextToNull(text: string | null): string | null {
-  return text && text.trim() !== "" ? text : null;
-}
-
-/** 와이어 행 → 도메인 행 — 날짜 초→ms·0→null, 빈 문자열→null, 모르는 status는 UNKNOW 강등. */
+/** 와이어 행 → 도메인 행 — 날짜 초→ms·0→null(wireEpochToMs), 빈 문자열→null(wireTextToNull,
+ * 둘 다 types/common.ts 공용), 모르는 status는 UNKNOW 강등. */
 export function toDomainInbound(wire: WireInbound): Inbound {
   const known = (INBOUND_STATUS as readonly string[]).includes(wire.status);
   if (!known) {

@@ -40,15 +40,57 @@ export const inboundStatusFilterSchema = z.enum(INBOUND_STATUS_FILTER);
 // COMPLETED=3/50이라 코드 순서로는 판별 불가 — 흐름이 다르면 이 배열만 조정).
 export const INBOUND_STATUS_FLOW = ["PLAN", "STANDBY", "WORK", "COMPLETED"] as const satisfies readonly InboundStatus[];
 
-// ── 출고상태 (설계값 — 확인 필요) ─────────────────────────────────
-export const OUTBOUND_STATUS = ["SCHEDULED", "PREPARING", "SHIPPED"] as const;
+
+// ── 출고상태 (코드값 Swagger 확정 · 표시명은 설계값) ──────────────
+// 코드값은 출고 목록 API(GET /dtob) 응답의 status 그대로(로컬 Swagger 확인 2026-08-06) —
+// PEND | PICK | PACK | COMPLETED | CANCELED | RETURNED | P_RETURNED | UNKNOW.
+// ⚠️ 한국어 표시명은 설계값(확인 필요) — CLAUDE.md 확정 명칭 목록에 출고 라벨이 없다.
+//   현행 화면 확인 후 라벨만 조정한다(코드값은 응답 확정이라 불변). CANCELED=취소(공통 종료
+//   상태, 사용자 확정)·UNKNOW=알 수 없음(원본 코드 매핑 실패, 입고와 동일 관례)만 확정 계승.
+export const OUTBOUND_STATUS = ["PEND", "PICK", "PACK", "COMPLETED", "CANCELED", "RETURNED", "P_RETURNED", "UNKNOW"] as const;
 export type OutboundStatus = (typeof OUTBOUND_STATUS)[number];
 export const outboundStatusSchema = z.enum(OUTBOUND_STATUS);
 export const OUTBOUND_STATUS_LABEL: Record<OutboundStatus, string> = {
-  SCHEDULED: "예정",
-  PREPARING: "준비중",
-  SHIPPED: "출고완료",
+  PEND: "대기", // 설계값 — 주문 접수 후 출고 작업 전(pending)
+  PICK: "피킹", // 설계값
+  PACK: "패킹", // 설계값
+  COMPLETED: "출고", // 설계값 — 입고의 COMPLETED="입고"와 같은 명명 패턴
+  CANCELED: "취소", // 확정(입고·출고·반품 공통 종료 상태)
+  RETURNED: "반품", // 설계값
+  P_RETURNED: "부분반품", // 설계값 — P_ = partial 추정
+  UNKNOW: "알 수 없음", // 입고와 동일 관례(응답 전용)
 };
+// 검색 필터 후보(잠정) — Req(DataOutboundSearchReq)의 status 예시는 "PEND | PICK | PACK |
+// COMPLETED | CANCELED | HOLDED"로 Res enum과 어긋난다(HOLDED는 Res에 없고, RETURNED/
+// P_RETURNED는 Req 예시에 없음). 백엔드 확인 전까지 Res 기반(UNKNOW 제외)으로 두고
+// HOLDED는 넣지 않는다. ※ Req의 status는 입고와 달리 **배열**(다중 선택)이다.
+export const OUTBOUND_STATUS_FILTER = ["PEND", "PICK", "PACK", "COMPLETED", "CANCELED", "RETURNED", "P_RETURNED"] as const satisfies readonly OutboundStatus[];
+export const outboundStatusFilterSchema = z.enum(OUTBOUND_STATUS_FILTER);
+// 순차 진행 파이프라인(스테퍼용, 잠정 설계) — 대기 → 피킹 → 패킹 → 출고.
+// CANCELED는 파이프라인 밖 종료 상태(공통 확정 — 붉은 X 단일 노드), RETURNED/P_RETURNED는
+// 출고 이후의 반품 계열이라 제외(스테퍼 표현 방식은 화면 조립 시 결정).
+export const OUTBOUND_STATUS_FLOW = ["PEND", "PICK", "PACK", "COMPLETED"] as const satisfies readonly OutboundStatus[];
+
+// ── 배송상태 (출고 전용 · 코드값 Swagger 확정 · 표시명은 설계값) ──
+// 출고 응답의 delivery 필드(nullable — 배송 단계 전이면 값 없음). 코드값은 Res 예시 그대로 —
+// DELIVERING | DELIVERED | COMPLETED | RETURNED | UNKNOW.
+// ⚠️ 표시명 설계값 — 특히 DELIVERED(배송완료)와 COMPLETED(완료)의 의미 차이 미확인
+//   (COMPLETED = 구매확정 추정). 현행 화면 확인 후 조정.
+export const OUTBOUND_DELIVERY = ["DELIVERING", "DELIVERED", "COMPLETED", "RETURNED", "UNKNOW"] as const;
+export type OutboundDelivery = (typeof OUTBOUND_DELIVERY)[number];
+export const outboundDeliverySchema = z.enum(OUTBOUND_DELIVERY);
+export const OUTBOUND_DELIVERY_LABEL: Record<OutboundDelivery, string> = {
+  DELIVERING: "배송중", // 설계값
+  DELIVERED: "배송완료", // 설계값
+  COMPLETED: "완료", // 설계값 — DELIVERED와의 차이 확인 필요
+  RETURNED: "반품", // 설계값
+  UNKNOW: "알 수 없음", // 입고와 동일 관례(응답 전용)
+};
+// 검색 필터 후보(잠정) — Req의 delivery 예시는 "DELIVERING | DELIVERED | CANCELED"로
+// Res enum과 어긋난다(CANCELED는 Res delivery에 없음). status와 같은 이유로 Res 기반
+// (UNKNOW 제외)으로 두고 CANCELED는 넣지 않는다. Req의 delivery도 배열(다중 선택).
+export const OUTBOUND_DELIVERY_FILTER = ["DELIVERING", "DELIVERED", "COMPLETED", "RETURNED"] as const satisfies readonly OutboundDelivery[];
+export const outboundDeliveryFilterSchema = z.enum(OUTBOUND_DELIVERY_FILTER);
 
 // ── 반품상태 (설계값 — 확인 필요) ─────────────────────────────────
 export const RETURN_STATUS = ["REQUESTED", "INSPECTING", "COMPLETED"] as const;
