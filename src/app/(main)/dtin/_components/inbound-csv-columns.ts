@@ -3,8 +3,9 @@ import { formatEpochDateTime } from "@/lib/utils/datetime";
 import { countryLabel, INBOUND_STATUS_LABEL, type Inbound } from "@/types";
 
 /**
- * 입고 CSV 컬럼 — "검색결과 전체 다운로드"(InboundDownloadButton)와 행 단위 다운로드
- * (InboundTable의 rowActions)가 같은 정의를 공유해 두 파일의 열이 어긋나지 않게 한다.
+ * 입고 CSV 컬럼 — "검색결과 전체 다운로드"(InboundScreen 헤더의 ExcelDownloadButton
+ * getRows 모드)와 행 단위 다운로드(InboundTable의 RowExportButton)가 같은 정의를
+ * 공유해 두 파일의 열이 어긋나지 않게 한다.
  *
  * 화면 컬럼(접수번호·입고상태·국가·WMS LINK·3개 날짜)에 더해, 목록에서 빼고
  * 행 상세로 옮긴 클라이언트·고객·대표상품·수량도 담는다 — 파일에는 열 폭 제약이 없다.

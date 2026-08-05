@@ -24,8 +24,9 @@ import {
   type UserRole,
 } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
+import { ExcelDownloadButton } from "@/components/common/excel-download-button";
 import { InboundTable } from "./inbound-table";
-import { InboundDownloadButton } from "./inbound-download-button";
+import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
 
 // 기준일자 후보 = Req의 searchDt 코드(입고접수일 REQ_DT · 창고도착일 WRHS_DT · 입고완료일 CMPL_DT).
 // 입고완료일은 응답에 표시할 필드가 없어 목록 컬럼에는 없다(검색 기준으로만 존재 — TBD 참조).
@@ -161,7 +162,19 @@ export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialPara
         // 홈(REVE-ON)은 PageHeader가 항상 붙인다 — 현재 페이지라 href는 주지 않는다
         breadcrumbs={[{ label: "입고현황" }]}
         className="shrink-0"
-        actions={<InboundDownloadButton getRows={fetchExportRows} />}
+        actions={
+          <ExcelDownloadButton
+            // 클릭 시점에 현재 검색 조건으로 조회하는 비동기 모드(getRows) — F012.
+            getRows={fetchExportRows}
+            columns={INBOUND_CSV_COLUMNS}
+            filename="inbound-export"
+            label="엑셀다운로드"
+            // h-auto p-0: 링크형 버튼의 기본 상하 패딩을 없애 박스를 글자 높이에 맞춘다 —
+            // 페이지 헤더(items-end)에서 타이틀 밑선과 버튼 글자가 같은 하단선에 붙게(패딩이
+            // 있으면 박스 바닥만 맞고 글자는 떠 보인다).
+            className="h-auto p-0"
+          />
+        }
       />
 
       {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { buttonVariants } from "@/components/ui/button";
@@ -19,41 +20,63 @@ export interface ExcelDownloadColumn<T> {
   accessor: (row: T) => string | number | null | undefined;
 }
 
-export interface ExcelDownloadButtonProps<T> extends VariantProps<typeof buttonVariants> {
-  data: T[];
+interface ExcelDownloadButtonBaseProps<T> extends VariantProps<typeof buttonVariants> {
   columns: ExcelDownloadColumn<T>[];
   /** 확장자 제외 파일명 — 기본값: `export-YYYYMMDDHHmmss` */
   filename?: string;
   label?: string;
+  /** getRows 조회 동안 표시할 라벨 */
+  busyLabel?: string;
   disabled?: boolean;
   className?: string;
 }
 
+/** 내보낼 행의 출처 — 이미 받아 둔 data와 클릭 시점 조회 getRows 중 정확히 하나만 준다. */
+export type ExcelDownloadButtonProps<T> = ExcelDownloadButtonBaseProps<T> &
+  (
+    | { data: T[]; getRows?: never }
+    | { getRows: () => Promise<T[]>; data?: never }
+  );
+
 /**
- * 검색결과 전체 다운로드 버튼.
+ * 검색결과 전체 다운로드 버튼(F012) — 행 출처에 따라 두 모드로 동작한다.
  *
- * Phase 1: 브라우저에서 현재 필터가 적용된 조회 결과(data)를 CSV로 직접 생성해 다운로드한다
- * (엑셀에서 바로 열리도록 UTF-8 BOM 포함). 화면 조립 단계는 SearchPanel과 동일한 필터로 조회한
- * "전체" 결과(페이지네이션 적용 전 or 전체 페이지 취합)를 data로 넘겨야 F012의
- * "검색결과 전체 다운로드" 의미가 성립한다.
+ * - `data`(동기): 이미 받아 둔 조회 결과를 클릭 즉시 CSV로 저장한다(빈 목록이면 비활성).
+ * - `getRows`(비동기): 클릭 시점에 현재 검색 조건의 전체 결과(페이지네이션 미적용)를
+ *   조회해 저장하고, 조회 동안 busyLabel을 표시한다. 페이지를 그릴 때마다 전체 결과를
+ *   미리 받아 두지 않아 매 조회 2중 호출(목록 + 전체) 비용이 없다 — 실 API 화면은 이 모드.
  *
- * Phase 2 교체 지점: 이 컴포넌트의 onClick 내부만 BFF export 엔드포인트 호출
- * (예: `GET /api/inbound/export?...현재 필터` → blob 응답 저장)로 교체하면 된다.
- * props 시그니처(data/columns)는 서버 스트리밍으로 바뀌면 필요 없어질 수 있으므로,
- * 교체 시 궁극적으로는 columns(헤더 정의)만 남고 data는 서버가 현재 필터로 직접 조회하게 된다.
+ * CSV는 브라우저에서 직접 생성한다(엑셀에서 바로 열리도록 UTF-8 BOM 포함).
+ *
+ * Phase 2 교체 지점: 서버 생성 엑셀 엔드포인트가 확정된 도메인(입고는
+ * INBOUND_API.download = /dtin/dn)부터 onClick 내부를 BFF 경유 파일 다운로드로 교체한다
+ * (이 컴포넌트 내부만 바뀐다). 그때는 궁극적으로 columns/데이터 조회가 서버 몫이 된다.
  */
 export function ExcelDownloadButton<T>({
   data,
+  getRows,
   columns,
   filename,
   label = "엑셀 다운로드",
+  busyLabel = "다운로드 중…",
   disabled,
   className,
   variant = "link",
   size,
 }: ExcelDownloadButtonProps<T>) {
-  function handleClick() {
-    exportRowsToCsv(data, columns, filename);
+  const [busy, setBusy] = useState(false);
+
+  async function handleClick() {
+    if (getRows) {
+      setBusy(true);
+      try {
+        exportRowsToCsv(await getRows(), columns, filename);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    exportRowsToCsv(data ?? [], columns, filename);
   }
 
   return (
@@ -62,11 +85,11 @@ export function ExcelDownloadButton<T>({
       variant={variant}
       size={size}
       className={cn(EXCEL_BUTTON_TONE, className)}
-      disabled={disabled || data.length === 0}
+      disabled={disabled || busy || (data ? data.length === 0 : false)}
       onClick={handleClick}
     >
       <Download data-icon="inline-end" />
-      {label}      
+      {busy ? busyLabel : label}
     </Button>
   );
 }
