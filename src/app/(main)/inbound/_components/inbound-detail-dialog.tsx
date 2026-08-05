@@ -32,6 +32,9 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
     label: INBOUND_STATUS_LABEL[status],
   }));
 
+  
+  
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined}>
@@ -71,7 +74,7 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
                     : INBOUND_STATUS_LABEL[row.status]
                 }
               />
-              <DetailField label="고객명" value={row.contactName ?? EMPTY} />
+              <DetailField label="고객명" value={row.contactName ?? EMPTY} mono />
               <DetailField label="고객연락처" value={row.contactTel ?? EMPTY} mono />
               <DetailField label="입고접수일" value={formatEpochDateTime(row.reqDt, EMPTY)} mono />
               <DetailField label="도착예정일" value={formatEpochDateTime(row.etaDt, EMPTY)} mono />
@@ -82,14 +85,23 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
 
             <section className="flex flex-col gap-2">
               <h3 className="text-xs text-tertiary-foreground">
-                제품리스트 ({row.prodList.length}) · 전체 {row.prodQty.toLocaleString()}개
+                제품리스트 ({row.prodList.length}) · 상품 전체 수량 {row.prodQty.toLocaleString()}개
               </h3>
-              <div className="overflow-hidden rounded-lg border border-border">
+              {/* 제품이 많으면 이 박스 안에서만 세로 스크롤(팝업 전체가 늘어나지 않게).
+               * 헤더는 sticky로 고정 — thead/tr 대신 각 th에 걸어야 브라우저 간 동작이
+               * 일정하다(DataTable과 동일 방식). border-collapse에서는 sticky 셀의
+               * 경계선이 같이 밀려 올라가므로 헤더 밑줄은 inset shadow로 그리고, 다크
+               * 모드의 row-alt 틴트가 반투명이라 불투명 카드색 위에 겹쳐 비침을 막는다. */}
+              <div className="max-h-64 overflow-y-auto overscroll-contain rounded-lg border border-border">
                 <table className="w-full border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-row-alt text-xs text-tertiary-foreground">
-                      <th className="px-4 py-2 text-left font-medium">상품명</th>
-                      <th className="px-4 py-2 text-right font-medium">접수 수량</th>
+                    <tr className="text-xs text-tertiary-foreground">
+                      <th className="sticky top-0 z-10 bg-card bg-[linear-gradient(var(--color-row-alt),var(--color-row-alt))] px-4 py-2 text-left font-medium shadow-[inset_0_-1px_0_0_var(--color-border)]">
+                        상품명
+                      </th>
+                      <th className="sticky top-0 z-10 bg-card bg-[linear-gradient(var(--color-row-alt),var(--color-row-alt))] px-4 py-2 text-right font-medium shadow-[inset_0_-1px_0_0_var(--color-border)]">
+                        수량
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -97,7 +109,7 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
                       <tr key={`${prod.sku}-${index}`} className="border-b border-border/60 last:border-0">
                         <td className="px-4 py-2.5 text-left">{prod.productName}</td>
                         <td className="px-4 py-2.5 text-right font-mono tabular-nums">
-                          {prod.expQty.toLocaleString()}
+                          {prod.qty.toLocaleString()}
                         </td>
                       </tr>
                     ))}
