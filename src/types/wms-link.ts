@@ -21,6 +21,17 @@ export const wmsLinkSchema = z.object({
 });
 export type WmsLink = z.infer<typeof wmsLinkSchema>;
 
+/**
+ * WMS LINK 필터 옵션 — GET /wmslkmap 응답 그대로(실서버 확인 2026-08-05: {name, idx} 배열,
+ * Req 파라미터 없음). 목록 화면의 WMS LINK 필터가 쓰는 최소 형태로, WMS 메뉴의 wmsLinkSchema
+ * (연동 관리용 상세 모델)와는 별개다.
+ */
+export const wmsLinkOptionSchema = z.object({
+  name: z.string(),
+  idx: z.number().int(),
+});
+export type WmsLinkOption = z.infer<typeof wmsLinkOptionSchema>;
+
 export const wmsLinkSearchParamsSchema = listSearchParamsSchema.extend({
   country: countrySchema.optional(),
   status: wmsLinkSyncStatusSchema.optional(),
