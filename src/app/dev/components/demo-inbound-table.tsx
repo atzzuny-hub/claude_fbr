@@ -15,6 +15,7 @@ import { INBOUND_STATUS_FLOW, INBOUND_STATUS_LABEL, type Inbound, type InboundSt
 const STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive" | "neutral"> = {
   PLAN: "info",
   STANDBY: "warning",
+  WORK: "info",
   COMPLETED: "success",
   CANCELED: "destructive",
   UNKNOW: "neutral",

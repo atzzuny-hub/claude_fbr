@@ -35,6 +35,7 @@ const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS_FILTER.map((status) => ({
 const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" | "destructive" | "neutral"> = {
   PLAN: "info",
   STANDBY: "warning",
+  WORK: "info",
   COMPLETED: "success",
   CANCELED: "destructive",
   UNKNOW: "neutral",

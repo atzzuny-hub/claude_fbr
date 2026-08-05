@@ -13,27 +13,32 @@ import { z } from "zod";
  */
 
 // ── 입고상태 (Swagger 확정) ───────────────────────────────────────
-// 코드값은 입고 목록 API 응답의 status 그대로 — PLAN | STANDBY | COMPLETED | CANCELED | UNKNOW
-// (UNKNOW는 API 표기 그대로이며 오타가 아니다). 표시명은 CLAUDE.md 확정 명칭(예정 → 대기 → 입고, 취소).
-// 순차 진행: 예정 → 대기 → 입고. 취소(CANCELED)는 파이프라인 밖의 종료 상태 —
+// 코드값은 입고 목록 API 응답의 status 그대로 — PLAN | STANDBY | WORK | COMPLETED | CANCELED |
+// UNKNOW (UNKNOW는 API 표기 그대로이며 오타가 아니다). 표시명은 CLAUDE.md 확정 명칭
+// (예정 → 대기 → 작업중 → 입고, 취소 — WORK=작업중은 사용자 확정 2026-08-05: 문서상
+// 없는 값으로 알려졌으나 실데이터에 실재해 정식 편입).
+// 순차 진행: 예정 → 대기 → 작업중 → 입고. 취소(CANCELED)는 파이프라인 밖의 종료 상태 —
 // 목록 배지는 붉은 톤, 스테퍼는 진행 단계 대신 붉은 X 단일 노드로 표시한다.
 // UNKNOW: WMS 원본 코드(statusOriginalCode)를 표준 상태로 매핑하지 못한 응답 전용 값.
-export const INBOUND_STATUS = ["PLAN", "STANDBY", "COMPLETED", "CANCELED", "UNKNOW"] as const;
+export const INBOUND_STATUS = ["PLAN", "STANDBY", "WORK", "COMPLETED", "CANCELED", "UNKNOW"] as const;
 export type InboundStatus = (typeof INBOUND_STATUS)[number];
 export const inboundStatusSchema = z.enum(INBOUND_STATUS);
 export const INBOUND_STATUS_LABEL: Record<InboundStatus, string> = {
   PLAN: "예정",
   STANDBY: "대기",
+  WORK: "작업중",
   COMPLETED: "입고",
   CANCELED: "취소",
   UNKNOW: "알 수 없음",
 };
 // 검색 필터로 보낼 수 있는 상태(목록 Req의 status enum과 1:1) — UNKNOW는 응답 전용이라 제외.
-export const INBOUND_STATUS_FILTER = ["PLAN", "STANDBY", "COMPLETED", "CANCELED"] as const satisfies readonly InboundStatus[];
+export const INBOUND_STATUS_FILTER = ["PLAN", "STANDBY", "WORK", "COMPLETED", "CANCELED"] as const satisfies readonly InboundStatus[];
 export const inboundStatusFilterSchema = z.enum(INBOUND_STATUS_FILTER);
 // 순차 진행 파이프라인(스테퍼 단계용) — 취소는 파이프라인 밖의 종료 상태라 제외한다.
 // 스테퍼는 이 배열로 단계를 그리고, 취소 행은 StatusStepper의 terminal 노드로 따로 표시한다.
-export const INBOUND_STATUS_FLOW = ["PLAN", "STANDBY", "COMPLETED"] as const satisfies readonly InboundStatus[];
+// WORK(작업중)의 위치는 물류 흐름상 대기와 입고 사이로 배치(원본 코드: STANDBY=1 · WORK=20 ·
+// COMPLETED=3/50이라 코드 순서로는 판별 불가 — 흐름이 다르면 이 배열만 조정).
+export const INBOUND_STATUS_FLOW = ["PLAN", "STANDBY", "WORK", "COMPLETED"] as const satisfies readonly InboundStatus[];
 
 // ── 출고상태 (설계값 — 확인 필요) ─────────────────────────────────
 export const OUTBOUND_STATUS = ["SCHEDULED", "PREPARING", "SHIPPED"] as const;
