@@ -82,6 +82,8 @@ interface InboundScreenProps {
   /** 첫 진입 기본 검색 조건(최근 1주 · 1페이지, Req 계약) — 페이지(서버)가 만든 값과 첫 데이터의 조건이 항상 같다 */
   initialParams: InboundSearchParams;
   initialData: Paginated<Inbound>;
+  /** 행 상세 엑셀을 서버 생성 파일로 받을지 — 페이지(서버)가 DATA_SOURCE=api 여부로 정한다 */
+  serverRowExcel?: boolean;
 }
 /**
  * 입고현황의 클라이언트 검색 상태 컨테이너 — 검색 조건을 URL에 싣지 않는다(사용자 확정
@@ -90,7 +92,14 @@ interface InboundScreenProps {
  * 새로고침하면 기본 조건으로 초기화되고, 조건이 담긴 링크 공유는 지원하지 않는다:
  * 의도된 트레이드오프).
  */
-export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialParams, initialData }: InboundScreenProps) {
+export function InboundScreen({
+  role,
+  wmsLinkOptions,
+  initialPeriod,
+  initialParams,
+  initialData,
+  serverRowExcel,
+}: InboundScreenProps) {
   const [params, setParams] = useState<InboundSearchParams>(initialParams);
   const [data, setData] = useState<Paginated<Inbound>>(initialData);
   const [loading, setLoading] = useState(false);
@@ -203,6 +212,7 @@ export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialPara
         total={data.total}
         page={data.page}
         pageSize={data.pageSize}
+        serverRowExcel={serverRowExcel}
         sort={params.sort}
         order={params.order}
         loading={loading}

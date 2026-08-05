@@ -94,41 +94,98 @@ export function ExcelDownloadButton<T>({
   );
 }
 
-export interface RowExportButtonProps<T> {
-  row: T;
-  columns: ExcelDownloadColumn<T>[];
-  /** 확장자 제외 파일명 — 행 식별자를 포함해 화면이 정한다(예: `inbound-${row.ganNo}`) */
-  filename: string;
-  ariaLabel?: string;
-}
+/** 행 하나의 내보내기 방식 — 클라이언트 CSV 생성(row+columns)과 서버 생성 파일(downloadUrl) 중 하나만 준다. */
+export type RowExportButtonProps<T> = { ariaLabel?: string } & (
+  | {
+      /** 클라이언트 CSV 생성 모드 — 목 폴백·서버 파일 엔드포인트 미확정 도메인용 */
+      row: T;
+      columns: ExcelDownloadColumn<T>[];
+      /** 확장자 제외 파일명 — 행 식별자를 포함해 화면이 정한다(예: `inbound-${row.ganNo}`) */
+      filename: string;
+      downloadUrl?: never;
+    }
+  | {
+      /** 서버 생성 파일 다운로드 모드 — BFF 파일 엔드포인트(예: `/api/dtin/dn/${row.idx}`) */
+      downloadUrl: string;
+      /** 서버가 Content-Disposition 파일명을 안 줄 때의 폴백(확장자 포함 권장) */
+      filename?: string;
+      row?: never;
+      columns?: never;
+    }
+);
 
 /**
  * 행 단위 다운로드 아이콘 버튼(F012) — DataTable rowActions 슬롯에 넣는 정형.
  * 툴바/헤더의 "엑셀 다운로드"와 같은 톤(흰 배경 + 초록 아이콘, EXCEL_BUTTON_TONE)을 공유해
  * 같은 다운로드 동작이 위치에 따라 다른 색으로 보이지 않게 한다.
  *
- * Phase 2 교체 지점: 행 상세 엑셀은 서버 생성 파일 엔드포인트로 교체 예정(입고는
- * INBOUND_API.downloadRow = /dtin/dn/{idx} 확정) — 이 컴포넌트의 onClick만 바꾸면
- * 전 도메인 표에 한 번에 반영된다(그때 행 다운로드 URL을 props로 받는 형태가 될 것).
+ * downloadUrl(서버 모드)이면 BFF에서 파일을 blob으로 받아 저장한다 — 파일명은 서버
+ * Content-Disposition 우선, 받는 동안 버튼은 비활성. 401은 /login 이동(세션 만료).
+ * 입고가 이 모드 사용 중(GET /api/dtin/dn/{idx})이고, 서버 엔드포인트가 확정되지 않은
+ * 도메인은 row/columns(클라이언트 CSV 생성) 모드를 쓴다.
  */
-export function RowExportButton<T>({
-  row,
-  columns,
-  filename,
-  ariaLabel = "이 행 다운로드",
-}: RowExportButtonProps<T>) {
+export function RowExportButton<T = unknown>(props: RowExportButtonProps<T>) {
+  const [busy, setBusy] = useState(false);
+
+  async function handleClick() {
+    if (props.downloadUrl !== undefined) {
+      setBusy(true);
+      try {
+        await downloadServerFile(props.downloadUrl, props.filename);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    exportRowsToCsv([props.row], props.columns, props.filename);
+  }
+
   return (
     <Button
       type="button"
       variant="outline"
       size="icon-xs"
       className={EXCEL_BUTTON_TONE}
-      aria-label={ariaLabel}
-      onClick={() => exportRowsToCsv([row], columns, filename)}
+      aria-label={props.ariaLabel ?? "이 행 다운로드"}
+      disabled={busy}
+      onClick={handleClick}
     >
       <Download />
     </Button>
   );
+}
+
+/**
+ * BFF 파일 엔드포인트 응답을 blob으로 받아 저장한다 — 파일명은 서버 Content-Disposition
+ * 우선, 없으면 폴백. 401(세션 만료)은 화면 관례대로 /login 이동으로 수렴시킨다.
+ */
+async function downloadServerFile(url: string, fallbackFilename?: string): Promise<void> {
+  const res = await fetch(url);
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
+  if (!res.ok) {
+    throw new Error(`파일 다운로드 실패: HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const serverName = parseDispositionFilename(res.headers.get("content-disposition"));
+  saveBlob(blob, serverName ?? fallbackFilename ?? `export-${timestamp()}`);
+}
+
+/** Content-Disposition에서 파일명 추출 — RFC 5987(filename*=UTF-8''…) 우선, 없으면 filename="…" */
+function parseDispositionFilename(header: string | null): string | null {
+  if (!header) return null;
+  const star = header.match(/filename\*=(?:UTF-8'')?([^;]+)/i);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      // 인코딩이 깨진 값이면 아래 filename= 표기로 폴백
+    }
+  }
+  const plain = header.match(/filename="?([^";]+)"?/i);
+  return plain ? plain[1].trim() : null;
 }
 
 /**
@@ -150,10 +207,15 @@ export function exportRowsToCsv<T>(
   const csv = "﻿" + [header.join(","), ...lines].join("\r\n");
 
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  saveBlob(blob, `${filename ?? `export-${timestamp()}`}.csv`);
+}
+
+/** blob을 브라우저 다운로드로 저장한다(앵커 클릭 방식) — CSV 생성·서버 파일 두 경로가 공유. */
+function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${filename ?? `export-${timestamp()}`}.csv`;
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

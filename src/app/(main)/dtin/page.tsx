@@ -48,6 +48,9 @@ export default async function InboundPage() {
       initialPeriod={period}
       initialParams={initialParams}
       initialData={initialData}
+      // 행 상세 엑셀 모드 — 도메인 전환 스위치(DATA_SOURCE)와 같은 기준: 실 API면 서버 생성
+      // 파일(BFF /api/dtin/dn/{idx}), 목 폴백이면 서버 파일이 없어 클라이언트 CSV 유지.
+      serverRowExcel={process.env.DATA_SOURCE === "api"}
     />
   );
 }

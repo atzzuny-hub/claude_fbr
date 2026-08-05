@@ -289,6 +289,33 @@ function parseInboundCount(json: unknown): number {
   return parsed.data;
 }
 
+/**
+ * 행 단위 상세 엑셀 파일 — Java GET /dtin/dn/{idx}(서버 생성 파일, 사용자 확정 2026-08-05)의
+ * 업스트림 Response를 그대로 돌려준다. 바이너리라 readJavaJson을 쓰지 않고, 스트리밍 중계는
+ * 파일 BFF(app/api/dtin/dn/[idx])가 담당한다. 실 API 전용: 목 모드의 화면은 Phase 1
+ * 클라이언트 CSV 경로(RowExportButton row/columns)를 그대로 쓰므로 여기로 오지 않는다 —
+ * 방어적으로 404를 던진다. 401도 redirect 대신 상태로 돌려준다(BFF 전용 경로 — 화면의
+ * fetch가 /login 이동을 담당).
+ */
+export async function getInboundRowExcel(idx: number): Promise<Response> {
+  if (process.env.DATA_SOURCE !== "api") {
+    throw new ApiError(404, "목 데이터 모드에서는 서버 엑셀 파일을 제공하지 않습니다.");
+  }
+  await requireSession();
+  const accessToken = await requireAccessToken();
+  const res = await getJavaApi(INBOUND_API.downloadRow(idx), { accessToken });
+  if (!res) {
+    console.error(`[lib/data/inbounds] GET /dtin/dn/${idx} 호출 실패(네트워크 연결 불가)`);
+    throw new ApiError(502, "엑셀 파일을 내려받지 못했습니다.");
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    console.error(`[lib/data/inbounds] GET /dtin/dn/${idx} 실패: HTTP ${res.status}${body ? ` — ${body.slice(0, 500)}` : ""}`);
+    throw new ApiError(res.status, res.status === 401 ? "로그인이 필요합니다." : "엑셀 파일을 내려받지 못했습니다.");
+  }
+  return res;
+}
+
 export async function getInbound(idx: number): Promise<Inbound | null> {
   await delay();
   const session = await requireSession();

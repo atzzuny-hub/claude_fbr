@@ -48,6 +48,11 @@ interface InboundTableProps {
   onSortChange: (key: string, order: "asc" | "desc" | null) => void;
   /** 표 상단 툴바에 놓을 액션(예: 검색결과 다운로드 버튼) */
   toolbarActions?: React.ReactNode;
+  /**
+   * 행 상세 엑셀을 서버 생성 파일(GET /api/dtin/dn/{idx})로 받을지 — 페이지(서버)가
+   * DATA_SOURCE=api 여부로 정해 내려준다. false(목 폴백)면 Phase 1 그대로 클라이언트 CSV 생성.
+   */
+  serverRowExcel?: boolean;
 }
 
 /**
@@ -67,6 +72,7 @@ export function InboundTable({
   onPageSizeChange,
   onSortChange,
   toolbarActions,
+  serverRowExcel = false,
 }: InboundTableProps) {
   /*
    * 행 클릭 상세 팝업 — 목록이 이미 받아 둔 행을 그대로 넘긴다(추가 조회 없음).
@@ -129,15 +135,15 @@ export function InboundTable({
         // 행 확장(+) 상세 — 고객명·연락처 + 입고 상품 리스트(합계 포함).
         // 입고상태 파이프라인은 추후 상세화면으로 이동 예정이라 여기서는 제외한다.
         renderDetail={(row) => <InboundDetail row={row} />}
-        // 행 상세 엑셀의 서버 다운로드 전환(INBOUND_API.downloadRow = /dtin/dn/{idx})은
-        // Phase 2에 공용 RowExportButton 쪽에서 교체한다.
-        rowActions={(row) => (
-          <RowExportButton
-            row={row}
-            columns={INBOUND_CSV_COLUMNS}
-            filename={`inbound-${row.ganNo ?? row.idx}`}
-          />
-        )}
+        // 행 상세 엑셀 — 실 API(DATA_SOURCE=api)면 서버 생성 파일(BFF /api/dtin/dn/{idx} →
+        // Java /dtin/dn/{idx}, 사용자 확정 2026-08-05), 목 폴백이면 Phase 1 클라이언트 CSV.
+        rowActions={(row) =>
+          serverRowExcel ? (
+            <RowExportButton downloadUrl={`/api/dtin/dn/${row.idx}`} filename={`inbound-${row.ganNo ?? row.idx}`} />
+          ) : (
+            <RowExportButton row={row} columns={INBOUND_CSV_COLUMNS} filename={`inbound-${row.ganNo ?? row.idx}`} />
+          )
+        }
         // 행 클릭 → 입고 상세 팝업(F001 "입고 목록/상세 조회").
         // 행 앞 조작 칸(펼치기 · 행 다운로드) 클릭은 전달되지 않는다.
         onRowClick={(row) => {
