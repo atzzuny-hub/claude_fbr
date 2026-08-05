@@ -23,6 +23,7 @@ import {
   type Paginated,
   type UserRole,
 } from "@/types";
+import { PageHeader } from "@/components/common/page-header";
 import { InboundTable } from "./inbound-table";
 import { InboundDownloadButton } from "./inbound-download-button";
 
@@ -145,12 +146,24 @@ export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialPara
     runSearch(parsed.success ? parsed.data : { pageNo: 0 });
   }
 
+  /** 헤더의 "검색결과 전체 다운로드"(F012) — 클릭 시점의 현재 검색 조건으로 조회한다 */
   function fetchExportRows(): Promise<Inbound[]> {
     return fetchInboundRows({ ...params, pageNo: 0, pageSize: EXPORT_MAX_ROWS });
   }
 
   return (
     <>
+      {/* 페이지 헤더를 여기(클라이언트)서 렌더하는 이유: actions의 엑셀다운로드 버튼이
+       * 현재 검색 조건(이 컴포넌트의 상태)으로 조회해야 하는데, 서버 컴포넌트(page.tsx)는
+       * 함수 prop을 클라이언트로 넘길 수 없다(RSC 경계 + 서버 액션 금지 — 원칙 7). */}
+      <PageHeader
+        title="입고현황"
+        // 홈(REVE-ON)은 PageHeader가 항상 붙인다 — 현재 페이지라 href는 주지 않는다
+        breadcrumbs={[{ label: "입고현황" }]}
+        className="shrink-0"
+        actions={<InboundDownloadButton getRows={fetchExportRows} />}
+      />
+
       {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.
        * 입고 목록 Req(Swagger 확정)에 클라이언트·국가 파라미터가 없으므로 두 필터는 노출하지
        * 않는 것으로 확정 — 다른 목록 화면은 각자 Swagger 확인 시 결정한다(CLAUDE.md TBD).
@@ -188,7 +201,7 @@ export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialPara
             pageSize: data.pageSize,
           })
         }
-        toolbarActions={<InboundDownloadButton getRows={fetchExportRows} />}
+        // 엑셀다운로드는 페이지 헤더 actions로 이동(사용자 확정 2026-08-05) — 표 툴바에는 없음.
       />
     </>
   );

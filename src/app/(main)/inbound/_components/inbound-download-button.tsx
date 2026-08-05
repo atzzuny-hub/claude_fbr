@@ -33,7 +33,10 @@ export function InboundDownloadButton({ getRows }: { getRows: () => Promise<Inbo
     <Button
       type="button"
       variant="link"
-      className={EXCEL_BUTTON_TONE}
+      // h-auto p-0: 링크형 버튼의 기본 상하 패딩을 없애 박스를 글자 높이에 맞춘다 —
+      // 페이지 헤더(items-end)에서 타이틀 밑선과 버튼 글자가 같은 하단선에 붙게(패딩이
+      // 있으면 박스 바닥만 맞고 글자는 떠 보인다).
+      className={`h-auto p-0 ${EXCEL_BUTTON_TONE}`}
       disabled={busy}
       onClick={handleClick}
     >
