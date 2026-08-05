@@ -84,6 +84,7 @@ src/
 │   ├── api/        # Java API 엔드포인트 정의(*_API 상수, 확정분만) + server.ts(서버 전용 호출 헬퍼 — BFF·프록시·lib/data)
 │   ├── auth/       # 인증 공유 모듈(쿠키 상수·JWT exp 디코드) — next 런타임 무의존(프록시와 공유)
 │   ├── data/       # 데이터 접근 함수 — Phase 2 교체 지점
+│   ├── google/     # 구글 시트 내보내기(서버 전용 — 서비스 계정 Drive 변환 업로드)
 │   ├── mock/       # 목데이터 (JSON/TS)
 │   └── utils/
 ├── proxy.ts        # 액세스 토큰 선제 갱신(Next 16 프록시 — 구 미들웨어 컨벤션)
@@ -147,6 +148,19 @@ src/
 
 ## 미확정 (TBD) — 필요 시 사용자에게 질문
 
+- **구글 시트 내보내기(PRD 외 신규 — 사용자 요청 2026-08-05, PRD 반영 필요)**: 입고 검색결과
+  엑셀(/dtin/dn)을 Google Drive에 시트 변환 업로드 후 새 탭으로 연다
+  (`lib/google/sheets` · BFF `GET /api/dtin/dn/sheet` · 공용 `GoogleSheetButton`).
+  `GOOGLE_DRIVE_FOLDER_ID` + 인증 env가 있어야 버튼이 노출된다(실 API 모드 전제).
+  인증은 2모드(OAuth 우선):
+  ① **OAuth 리프레시 토큰(기본 — 사용자 선택 2026-08-05)**: 실제 계정 소유로 시트 생성.
+  `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET`/`_REFRESH_TOKEN` — 발급은 `scripts/google-oauth-setup.mjs`
+  (데스크톱 앱 클라이언트 + 루프백 1회 동의, 동의 화면은 "게시" 상태여야 토큰이 안 죽음)
+  ② 서비스 계정(`GOOGLE_SA_*`): **일반 드라이브에선 불가 확정** — 서비스 계정 저장용량 0
+  (실측 2026-08-05, 403 storageQuotaExceeded). 공유 드라이브 폴더 전제의 대안 모드.
+  조직(reve-on.com) 정책이 SA 키 생성도 차단해 개인 계정 GCP 프로젝트(reve-sheet-export)로
+  우회 중. **남은 확인**: ① 생성된 시트 정리(보존) 정책 ② 운영 시 회사 계정/공유 드라이브로
+  이전 여부 ③ PRD 반영
 - 인증: JWT 확정 + 엔드포인트 3종 확정(사용자 제공 2026-08-04, `lib/api/auth.ts`):
   POST `/auth/login`(Req email/password → Res에 accessToken·refreshToken·auth 레벨 등) ·
   `/auth/logout`(Req refreshToken → true) · `/auth/token`(재발급). 토큰은 응답 바디로 오며
@@ -258,7 +272,8 @@ src/
   실연동(/wmslkmap)·WORK 상태 편입·기본 기간 1주 적용·검색 조건 URL 제거(axios→데이터
   BFF 전환, 원칙 6·7 — 서버 액션 금지)**(2026-08-05) → **입고 엑셀 서버 다운로드 전환
   완료**(2026-08-05, 행 상세 GET `/api/dtin/dn/{idx}` · 검색결과 전체 GET `/api/dtin/dn`
-  파일 BFF — 목 폴백은 CSV 유지) → 나머지 도메인(다음: 출고 `/dtob`) 순
+  파일 BFF — 목 폴백은 CSV 유지) → **구글 시트 내보내기 추가**(2026-08-05, PRD 외
+  사용자 요청 — 아래 TBD 참조) → 나머지 도메인(다음: 출고 `/dtob`) 순
 
 ## 명령어
 

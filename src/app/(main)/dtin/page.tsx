@@ -1,6 +1,7 @@
 // PRD: F001(입고현황 조회), F012(목록 검색·엑셀 다운로드), F013(역할별 데이터 스코핑)
 // — 입고현황 페이지 (접근 권한: 공통·데이터 스코핑, 로그인 후 기본 진입 화면)
 import { getInbounds, getWmsLinkOptions, requireSession } from "@/lib/data";
+import { isGoogleSheetsConfigured } from "@/lib/google/sheets";
 import { DEFAULT_PAGE_SIZE, WMS_LINK_ALL, type InboundSearchParams } from "@/types";
 import { recentPeriodKst, toEpochSeconds } from "@/lib/utils/datetime";
 import type { SelectOption } from "@/components/common/search-panel";
@@ -52,6 +53,8 @@ export default async function InboundPage() {
       // 실 API면 서버 생성 파일(BFF /api/dtin/dn·dn/{idx}), 목 폴백이면 서버 파일이 없어
       // 클라이언트 CSV 유지.
       serverExcel={process.env.DATA_SOURCE === "api"}
+      // "구글 시트로 열기" — 서버 엑셀이 원본이라 실 API 전제 + GOOGLE_* env 3종이 있어야 노출.
+      sheetExport={isGoogleSheetsConfigured()}
     />
   );
 }

@@ -27,6 +27,7 @@ import {
 import { PageHeader } from "@/components/common/page-header";
 import { ListScreenLayout } from "@/components/common/list-screen-layout";
 import { ExcelDownloadButton } from "@/components/common/excel-download-button";
+import { GoogleSheetButton } from "@/components/common/google-sheet-button";
 import { InboundTable } from "./inbound-table";
 import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
 
@@ -90,6 +91,8 @@ interface InboundScreenProps {
   initialData: Paginated<Inbound>;
   /** 엑셀(행 상세·검색결과 전체)을 서버 생성 파일로 받을지 — 페이지(서버)가 DATA_SOURCE=api 여부로 정한다 */
   serverExcel?: boolean;
+  /** "구글 시트로 열기" 노출 여부 — 페이지(서버)가 GOOGLE_* env 설정 여부로 정한다(서버 엑셀 전제) */
+  sheetExport?: boolean;
 }
 /**
  * 입고현황의 클라이언트 검색 상태 컨테이너 — 검색 조건을 URL에 싣지 않는다(사용자 확정
@@ -105,6 +108,7 @@ export function InboundScreen({
   initialParams,
   initialData,
   serverExcel,
+  sheetExport,
 }: InboundScreenProps) {
   const [params, setParams] = useState<InboundSearchParams>(initialParams);
   const [data, setData] = useState<Paginated<Inbound>>(initialData);
@@ -168,15 +172,18 @@ export function InboundScreen({
     return fetchInboundRows({ ...params, pageNo: 0, pageSize: EXPORT_MAX_ROWS });
   }
 
-  // 서버 엑셀 URL(실 API 모드) — /dn Req는 목록과 동일 계약(필터 + pageNo·pageSize 필수,
-  // 사용자 제공 Req 2026-08-05)이라 페이지 파라미터도 싣는다. "검색결과 전체"의 의미는
+  // 서버 엑셀/시트 쿼리(실 API 모드) — /dn Req는 목록과 동일 계약(필터 + pageNo·pageSize
+  // 필수, 사용자 제공 Req 2026-08-05)이라 페이지 파라미터도 싣는다. "검색결과 전체"의 의미는
   // CSV 폴백(fetchExportRows)과 동일하게 pageNo 0 + EXPORT_MAX_ROWS로 표현한다.
   // params 상태가 바뀔 때마다 재계산되므로 클릭 시점의 조건이 항상 반영된다.
-  const serverExcelUrl = `/api/dtin/dn?${buildQueryString({
+  const exportQuery = buildQueryString({
     ...toInboundFilter(params),
     pageNo: 0,
     pageSize: EXPORT_MAX_ROWS,
-  })}`;
+  });
+  const serverExcelUrl = `/api/dtin/dn?${exportQuery}`;
+  // 같은 검색결과의 다른 출력 형태 — BFF가 /dtin/dn 엑셀을 구글 시트로 변환 업로드한다.
+  const sheetUrlEndpoint = `/api/dtin/dn/sheet?${exportQuery}`;
 
   return (
     // 높이 채움(h-full min-h-0)·헤더/검색 고정(shrink-0)·표 안 스크롤 골격은
@@ -195,12 +202,16 @@ export function InboundScreen({
           // 있으면 박스 바닥만 맞고 글자는 떠 보인다).
           actions={
             serverExcel ? (
-              <ExcelDownloadButton
-                // 실 API: 서버 생성 엑셀(BFF /api/dtin/dn → Java /dtin/dn, 사용자 확정 2026-08-05).
-                downloadUrl={serverExcelUrl}
-                label="엑셀다운로드"
-                className="h-auto p-0"
-              />
+              <>
+                {/* 구글 시트 — 서버 엑셀과 같은 검색결과의 다른 출력(GOOGLE_* env 설정 시에만 노출) */}
+                {sheetExport && <GoogleSheetButton endpoint={sheetUrlEndpoint} className="h-auto p-0" />}
+                <ExcelDownloadButton
+                  // 실 API: 서버 생성 엑셀(BFF /api/dtin/dn → Java /dtin/dn, 사용자 확정 2026-08-05).
+                  downloadUrl={serverExcelUrl}
+                  label="엑셀다운로드"
+                  className="h-auto p-0"
+                />
+              </>
             ) : (
               <ExcelDownloadButton
                 // 목 폴백: 클릭 시점에 현재 조건으로 조회(getRows)해 클라이언트 CSV 생성 — F012.
