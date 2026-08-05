@@ -10,6 +10,7 @@ import {
 import { StatusBadge } from "@/components/common/status-badge";
 import { CountryCell } from "@/components/common/country-flag";
 import { DateTimeCell } from "@/components/common/date-time-cell";
+import { NullableCell } from "@/components/common/nullable-cell";
 import { RowExportButton } from "@/components/common/excel-download-button";
 import { cn } from "@/lib/utils";
 import { INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
@@ -30,11 +31,6 @@ const INBOUND_STATUS_TONE: Record<InboundStatus, "info" | "warning" | "success" 
   CANCELED: "destructive",
   UNKNOW: "neutral",
 };
-
-/** 접수번호 등 nullable 문자열 셀 — 값이 없으면 조용한 대시로 표시한다 */
-function nullableCell(value: string | null) {
-  return value ?? <span className="text-tertiary-foreground">—</span>;
-}
 
 interface InboundTableProps {
   data: Inbound[];
@@ -84,8 +80,8 @@ export function InboundTable({
   // 배송일(sipDt)은 사용자 확정으로 제외).
   // 여기서 빠진 클라이언트·제품·수량은 행 확장(+) 상세와 CSV로 옮겼다.
   const columns: DataTableColumn<Inbound>[] = [
-    { key: "ganNo", header: "주문번호", cell: (row) => nullableCell(row.ganNo), cellClassName: "font-mono" },
-    { key: "dataId", header: "접수번호", cell: (row) => nullableCell(row.dataId), cellClassName: "font-mono" },
+    { key: "ganNo", header: "주문번호", cell: (row) => <NullableCell value={row.ganNo} />, cellClassName: "font-mono" },
+    { key: "dataId", header: "접수번호", cell: (row) => <NullableCell value={row.dataId} />, cellClassName: "font-mono" },
     {
       key: "status",
       header: "입고상태",
