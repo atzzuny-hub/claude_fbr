@@ -2,7 +2,7 @@
 // — 입고현황 페이지 (접근 권한: 공통·데이터 스코핑, 로그인 후 기본 진입 화면)
 import { getInbounds, getWmsLinkOptions, requireSession } from "@/lib/data";
 import { DEFAULT_PAGE_SIZE, WMS_LINK_ALL, type InboundSearchParams } from "@/types";
-import { recentPeriodUtc, toEpochSeconds } from "@/lib/utils/datetime";
+import { recentPeriodKst, toEpochSeconds } from "@/lib/utils/datetime";
 import type { SelectOption } from "@/components/common/search-panel";
 import { InboundScreen } from "./_components/inbound-screen";
 
@@ -10,11 +10,11 @@ import { InboundScreen } from "./_components/inbound-screen";
  * 검색 조건은 URL에 싣지 않는다(사용자 확정 2026-08-05, CLAUDE.md 원칙 6) — 이 페이지는
  * searchParams를 읽지 않고 항상 기본 조건(최근 1주 UTC · 1페이지)으로 첫 데이터를 서버에서
  * 조회해 내려준다. 이후의 조회·페이지 이동·정렬은 InboundScreen(클라이언트 상태)이 서버
- * 액션으로 갱신하며 URL은 /inbound 그대로다(레거시 SPA와 같은 동작 — 새로고침 시 기본
+ * 액션으로 갱신하며 URL은 /dtin 그대로다(레거시 SPA와 같은 동작 — 새로고침 시 기본
  * 조건으로 초기화).
  */
 export default async function InboundPage() {
-  const period = recentPeriodUtc(7); // 기본 기간 = 최근 1주(사용자 확정) — 기간은 Req 필수 파라미터
+  const period = recentPeriodKst(7); // 기본 기간 = 최근 1주(사용자 확정) — 기간은 Req 필수 파라미터
   // 검색 파라미터는 Req와 동일 계약(startDt/endDt epoch 초 · pageNo 0-기반) — 날짜 문자열은
   // 검색 패널 표시용으로만 따로 내려준다(initialPeriod).
   const initialParams: InboundSearchParams = {

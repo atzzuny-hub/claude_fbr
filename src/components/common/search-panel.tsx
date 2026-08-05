@@ -16,7 +16,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { buildQueryString } from "@/lib/utils/search-params";
-import { recentPeriodUtc } from "@/lib/utils/datetime";
+import { recentPeriodKst } from "@/lib/utils/datetime";
 import type { UserRole } from "@/types";
 
 /** select 전체 옵션 sentinel — "" 값은 Base UI Select item과 충돌해 별도 문자열을 쓴다 */
@@ -26,15 +26,16 @@ const ALL = "ALL";
 const DEFAULT_PERIOD_DAYS = 7;
 
 /**
- * 기간 초기값 — 시작 = 오늘-1주, 종료 = 오늘 (date 값 "YYYY-MM-DD", **UTC 기준**).
- * 이 시스템의 날짜 축은 UTC+0 하나다(응답 표시·Req 변환·서버 기본 기간 전부) — 여기만
- * 브라우저 로컬(KST 등)로 계산하면 새벽 시간대에 서버가 채운 기본 기간과 하루 어긋난다.
+ * 기간 초기값 — 시작 = 오늘-1주, 종료 = 오늘 (date 값 "YYYY-MM-DD", **KST 달력 기준**).
+ * 표시 시간대가 KST라(사용자 확정 2026-08-05) "오늘"도 같은 축으로 계산한다 — +9 고정
+ * 오프셋(recentPeriodKst)이라 서버·브라우저 어디서 계산해도 같은 값이다(서버가 채운 기본
+ * 기간과 초기화 버튼 값이 항상 일치).
  * 기간은 날짜 단위로만 입력받는다(사용자 확정: 시간 불필요). Req의 startDt/endDt는
- * datetime 정밀도지만, 조회 필터가 날짜만 있는 값을 시작 00:00 / 종료 23:59:59로 확장한다
- * (lib/data — 목 필터와 Phase 2 Req 변환이 같은 규칙).
+ * datetime 정밀도지만, 조회 시 날짜만 있는 값을 시작 00:00 / 종료 23:59:59(UTC 자정 기준,
+ * 레거시 동일)로 확장한다 — toEpochSeconds 주석 참조.
  */
 function defaultPeriod(): { from: string; to: string } {
-  return recentPeriodUtc(DEFAULT_PERIOD_DAYS);
+  return recentPeriodKst(DEFAULT_PERIOD_DAYS);
 }
 
 /**
@@ -162,10 +163,10 @@ export function SearchPanel({
   const [keyword, setKeyword] = useState(defaultValues?.keyword ?? "");
 
   /*
-   * 기간 초기값(시작일 = 오늘-1주, 종료일 = 오늘, UTC) 채우기.
+   * 기간 초기값(시작일 = 오늘-1주, 종료일 = 오늘, KST 달력) 채우기.
    * 렌더 중에 시계를 읽지 않는 이유: 렌더 중 Date.now()는 순수성 규칙 위반(react-hooks 린트)
-   * 이고 SSR 마크업과 어긋날 수 있다 — 마운트 후 한 번만 채운다. 날짜 계산은 UTC 기준이라
-   * 서버·브라우저 어디서 하든 같은 값이다(시간대 축은 UTC+0 하나 — defaultPeriod 주석 참조).
+   * 이고 SSR 마크업과 어긋날 수 있다 — 마운트 후 한 번만 채운다. 날짜 계산은 +9 고정
+   * 오프셋(KST)이라 서버·브라우저 어디서 하든 같은 값이다(defaultPeriod 주석 참조).
    * URL에 기간이 이미 있으면(조회한 화면 새로고침·링크 공유 등) 그 값이 우선이므로 건드리지
    * 않는다. (입고처럼 페이지가 서버에서 기본 기간을 항상 채우는 화면에서는 이 효과가 스킵된다)
    */
