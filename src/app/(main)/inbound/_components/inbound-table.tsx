@@ -158,22 +158,20 @@ export function InboundTable({
 }
 
 /**
- * 행 확장(+) 상세 — 클라이언트·고객명·연락처와 제품 목록(SKU LIST, 합계 포함).
+ * 행 확장(+) 상세 — 고객명·연락처와 제품 목록(SKU LIST, 합계 포함).
  * 수량 3종은 Swagger 의미 그대로: expQty(접수) ⊇ qty(사용 가능) + excQty(오류).
  * 넓은 표는 자체 컨테이너에서 가로 스크롤한다(페이지 본문은 가로로 넘치지 않게).
  */
 function InboundDetail({ row }: { row: Inbound }) {
+  const totalInbound = row.prodList.reduce((sum, prod) => sum + prod.expQty, 0);
   const totalAvailable = row.prodList.reduce((sum, prod) => sum + prod.qty, 0);
   const totalError = row.prodList.reduce((sum, prod) => sum + prod.excQty, 0);
 
   return (
     <div className="flex flex-col gap-4">
-      {/* 클라이언트 · 고객명 · 연락처 — nullable 필드는 대시로 */}
+      {/* 고객명 · 연락처 — nullable 필드는 대시로.
+       * 클라이언트·입고 ID는 사용자 확정(2026-08-05)으로 여기서 제외 — 행 클릭 상세 팝업에서 확인. */}
       <div className="flex flex-wrap items-center gap-x-8 gap-y-1 text-xs">
-        <span className="flex items-center gap-2">
-          <span className="text-muted-foreground">클라이언트</span>
-          <span className="font-medium text-foreground">{row.clntName ?? "—"}</span>
-        </span>
         <span className="flex items-center gap-2">
           <span className="text-muted-foreground">고객명</span>
           <span className="font-medium text-foreground">{row.contactName ?? "—"}</span>
@@ -182,10 +180,6 @@ function InboundDetail({ row }: { row: Inbound }) {
           <span className="text-muted-foreground">연락처</span>
           <span className="font-medium tabular-nums text-foreground">{row.contactTel ?? "—"}</span>
         </span>
-        <span className="flex items-center gap-2">
-          <span className="text-muted-foreground">입고 ID</span>
-          <span className="font-mono font-medium text-foreground">{row.dataId}</span>
-        </span>
       </div>
 
       {/* 제품 목록(SKU LIST) */}
@@ -193,12 +187,22 @@ function InboundDetail({ row }: { row: Inbound }) {
         <div className="text-xs text-tertiary-foreground">
           제품 목록 ({row.prodList.length}종) · 전체 {row.prodQty.toLocaleString()}개
         </div>
-        <div className="overflow-x-auto">
+        {/* 넓은 표는 가로 스크롤, 제품이 5종을 넘으면 세로도 이 박스 안에서만 스크롤
+         * (행 확장이 화면을 통째로 밀어내지 않게). 스크롤 중에도 헤더와 합계(tfoot)는
+         * sticky로 고정 — 배경은 확장 패널(bg-row-alt 틴트)과 같아 보이도록 카드색 위에
+         * 틴트를 겹친다(다크 모드 틴트가 반투명이라 밑 행이 비치는 것 방지). 경계선은
+         * sticky에서 border가 같이 밀려 올라가므로 inset shadow로 그린다. */}
+        <div
+          className={cn(
+            "overflow-x-auto",
+            row.prodList.length > 5 && "max-h-60 overflow-y-auto overscroll-contain",
+          )}
+        >
           <table className="w-full min-w-160 border-collapse text-xs">
             <thead>
-              <tr className="border-b border-border text-tertiary-foreground">
+              <tr className="text-tertiary-foreground">
                 <DetailTh>SKU</DetailTh>
-                <DetailTh className="text-right">접수 수량</DetailTh>
+                <DetailTh className="text-right">입고 전체 수량</DetailTh>
                 <DetailTh className="text-right">사용가능수량</DetailTh>
                 <DetailTh className="text-right">오류수량</DetailTh>
                 <DetailTh>단위</DetailTh>
@@ -224,19 +228,19 @@ function InboundDetail({ row }: { row: Inbound }) {
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t border-border font-medium text-foreground">
-                <DetailTd>합계</DetailTd>
-                <DetailTd className="text-right font-mono tabular-nums">
-                  {row.prodQty.toLocaleString()}
-                </DetailTd>
-                <DetailTd className="text-right font-mono tabular-nums">
+              <tr className="font-medium text-foreground">
+                <DetailFootTd>합계</DetailFootTd>
+                <DetailFootTd className="text-right font-mono tabular-nums">
+                  {totalInbound.toLocaleString()}
+                </DetailFootTd>
+                <DetailFootTd className="text-right font-mono tabular-nums">
                   {totalAvailable.toLocaleString()}
-                </DetailTd>
-                <DetailTd className="text-right font-mono tabular-nums">
+                </DetailFootTd>
+                <DetailFootTd className="text-right font-mono tabular-nums">
                   {totalError.toLocaleString()}
-                </DetailTd>
-                <DetailTd />
-                <DetailTd />
+                </DetailFootTd>
+                <DetailFootTd />
+                <DetailFootTd />
               </tr>
             </tfoot>
           </table>
@@ -246,10 +250,38 @@ function InboundDetail({ row }: { row: Inbound }) {
   );
 }
 
+/** 확장 패널과 같은 색으로 보이는 불투명 sticky 배경 — 카드색 위에 row-alt 틴트를 겹친다 */
+const DETAIL_STICKY_BG = "bg-card bg-[linear-gradient(var(--color-row-alt),var(--color-row-alt))]";
+
 function DetailTh({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <th className={cn("px-3 py-2 text-left font-medium whitespace-nowrap", className)}>{children}</th>;
+  return (
+    <th
+      className={cn(
+        "sticky top-0 z-10 px-3 py-2 text-left font-medium whitespace-nowrap shadow-[inset_0_-1px_0_0_var(--color-border)]",
+        DETAIL_STICKY_BG,
+        className,
+      )}
+    >
+      {children}
+    </th>
+  );
 }
 
 function DetailTd({ children, className }: { children?: React.ReactNode; className?: string }) {
   return <td className={cn("px-3 py-2 text-left whitespace-nowrap", className)}>{children}</td>;
+}
+
+/** 합계(tfoot) 셀 — 세로 스크롤 중에도 바닥에 고정. 윗줄은 sticky에서도 따라오게 inset shadow로. */
+function DetailFootTd({ children, className }: { children?: React.ReactNode; className?: string }) {
+  return (
+    <td
+      className={cn(
+        "sticky bottom-0 z-10 px-3 py-2 text-left whitespace-nowrap shadow-[inset_0_1px_0_0_var(--color-border)]",
+        DETAIL_STICKY_BG,
+        className,
+      )}
+    >
+      {children}
+    </td>
+  );
 }
