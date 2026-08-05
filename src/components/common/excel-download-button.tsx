@@ -71,9 +71,46 @@ export function ExcelDownloadButton<T>({
   );
 }
 
+export interface RowExportButtonProps<T> {
+  row: T;
+  columns: ExcelDownloadColumn<T>[];
+  /** 확장자 제외 파일명 — 행 식별자를 포함해 화면이 정한다(예: `inbound-${row.ganNo}`) */
+  filename: string;
+  ariaLabel?: string;
+}
+
 /**
- * 행 단위 다운로드(F012) 등 버튼 UI 없이 내보내기만 필요한 곳(예: DataTable rowActions의
- * 아이콘 버튼)에서 재사용하는 순수 함수. ExcelDownloadButton과 동일한 CSV 생성 로직을 공유한다.
+ * 행 단위 다운로드 아이콘 버튼(F012) — DataTable rowActions 슬롯에 넣는 정형.
+ * 툴바/헤더의 "엑셀 다운로드"와 같은 톤(흰 배경 + 초록 아이콘, EXCEL_BUTTON_TONE)을 공유해
+ * 같은 다운로드 동작이 위치에 따라 다른 색으로 보이지 않게 한다.
+ *
+ * Phase 2 교체 지점: 행 상세 엑셀은 서버 생성 파일 엔드포인트로 교체 예정(입고는
+ * INBOUND_API.downloadRow = /dtin/dn/{idx} 확정) — 이 컴포넌트의 onClick만 바꾸면
+ * 전 도메인 표에 한 번에 반영된다(그때 행 다운로드 URL을 props로 받는 형태가 될 것).
+ */
+export function RowExportButton<T>({
+  row,
+  columns,
+  filename,
+  ariaLabel = "이 행 다운로드",
+}: RowExportButtonProps<T>) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="icon-xs"
+      className={EXCEL_BUTTON_TONE}
+      aria-label={ariaLabel}
+      onClick={() => exportRowsToCsv([row], columns, filename)}
+    >
+      <Download />
+    </Button>
+  );
+}
+
+/**
+ * 행 단위 다운로드(F012) 등 버튼 UI 없이 내보내기만 필요한 곳에서 재사용하는 순수 함수.
+ * ExcelDownloadButton·RowExportButton과 동일한 CSV 생성 로직을 공유한다.
  */
 export function exportRowsToCsv<T>(
   rows: T[],

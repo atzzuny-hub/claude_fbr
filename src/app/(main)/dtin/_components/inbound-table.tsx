@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/common/data-table";
 import {
   StickyDetailFootTd,
@@ -12,7 +10,7 @@ import {
 import { StatusBadge } from "@/components/common/status-badge";
 import { CountryCell } from "@/components/common/country-flag";
 import { DateTimeCell } from "@/components/common/date-time-cell";
-import { EXCEL_BUTTON_TONE, exportRowsToCsv } from "@/components/common/excel-download-button";
+import { RowExportButton } from "@/components/common/excel-download-button";
 import { cn } from "@/lib/utils";
 import { INBOUND_STATUS_LABEL, type Inbound, type InboundStatus } from "@/types";
 import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
@@ -135,22 +133,14 @@ export function InboundTable({
         // 행 확장(+) 상세 — 고객명·연락처 + 입고 상품 리스트(합계 포함).
         // 입고상태 파이프라인은 추후 상세화면으로 이동 예정이라 여기서는 제외한다.
         renderDetail={(row) => <InboundDetail row={row} />}
+        // 행 상세 엑셀의 서버 다운로드 전환(INBOUND_API.downloadRow = /dtin/dn/{idx})은
+        // Phase 2에 공용 RowExportButton 쪽에서 교체한다.
         rowActions={(row) => (
-          <Button
-            // 툴바의 "엑셀다운로드"와 같은 톤(흰 배경 + 초록 아이콘)으로 맞춘다 —
-            // 같은 다운로드 동작이 위치에 따라 다른 색으로 보이지 않게 한다.
-            // Phase 2 교체 지점: 행 상세 엑셀은 서버 엔드포인트가 확정되어 있다
-            // (lib/api/inbound.ts INBOUND_API.downloadRow = /dtin/dn/{idx}).
-            variant="outline"
-            className={EXCEL_BUTTON_TONE}
-            size="icon-xs"
-            aria-label="이 행 다운로드"
-            onClick={() =>
-              exportRowsToCsv([row], INBOUND_CSV_COLUMNS, `inbound-${row.ganNo ?? row.idx}`)
-            }
-          >
-            <Download />
-          </Button>
+          <RowExportButton
+            row={row}
+            columns={INBOUND_CSV_COLUMNS}
+            filename={`inbound-${row.ganNo ?? row.idx}`}
+          />
         )}
         // 행 클릭 → 입고 상세 팝업(F001 "입고 목록/상세 조회").
         // 행 앞 조작 칸(펼치기 · 행 다운로드) 클릭은 전달되지 않는다.
