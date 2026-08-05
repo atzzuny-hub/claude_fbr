@@ -39,20 +39,15 @@ export default async function InboundPage() {
   }));
 
   return (
-    // 셸이 준 높이를 모든 폭에서 그대로 채워 목록이 화면 안에 들어오고, 표 안에서만 스크롤된다.
-    // 좁은 화면에서 검색 조건이 여러 줄로 감겨 표 최소 높이(DataTable min-h-64)가 안 나오면
-    // 페이지 스크롤로 폴백된다.
-    // PageHeader는 InboundScreen(클라이언트)이 렌더한다 — 헤더 actions의 엑셀다운로드가
-    // 현재 검색 조건(클라이언트 상태)으로 조회해야 해서, 서버(여기)에서는 그 함수를 만들 수도
-    // 넘길 수도 없다(RSC 경계는 함수 prop 불가 + 서버 액션 금지 — 원칙 7).
-    <div className="flex flex-col gap-4 h-full min-h-0">
-      <InboundScreen
-        role={session.role}
-        wmsLinkOptions={wmsLinkOptions}
-        initialPeriod={period}
-        initialParams={initialParams}
-        initialData={initialData}
-      />
-    </div>
+    // 높이 채움·표 안 스크롤 골격(과 그 안의 PageHeader·SearchPanel 렌더)은 InboundScreen의
+    // 공용 ListScreenLayout이 담당한다 — 헤더를 클라이언트가 렌더하는 이유(RSC 경계 + 서버
+    // 액션 금지)와 fillHeight 계약 설명은 그쪽 주석 참조.
+    <InboundScreen
+      role={session.role}
+      wmsLinkOptions={wmsLinkOptions}
+      initialPeriod={period}
+      initialParams={initialParams}
+      initialData={initialData}
+    />
   );
 }

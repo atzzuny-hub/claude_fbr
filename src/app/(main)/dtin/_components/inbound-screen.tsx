@@ -24,6 +24,7 @@ import {
   type UserRole,
 } from "@/types";
 import { PageHeader } from "@/components/common/page-header";
+import { ListScreenLayout } from "@/components/common/list-screen-layout";
 import { ExcelDownloadButton } from "@/components/common/excel-download-button";
 import { InboundTable } from "./inbound-table";
 import { INBOUND_CSV_COLUMNS } from "./inbound-csv-columns";
@@ -153,47 +154,50 @@ export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialPara
   }
 
   return (
-    <>
-      {/* 페이지 헤더를 여기(클라이언트)서 렌더하는 이유: actions의 엑셀다운로드 버튼이
-       * 현재 검색 조건(이 컴포넌트의 상태)으로 조회해야 하는데, 서버 컴포넌트(page.tsx)는
-       * 함수 prop을 클라이언트로 넘길 수 없다(RSC 경계 + 서버 액션 금지 — 원칙 7). */}
-      <PageHeader
-        title="입고현황"
-        // 홈(REVE-ON)은 PageHeader가 항상 붙인다 — 현재 페이지라 href는 주지 않는다
-        breadcrumbs={[{ label: "입고현황" }]}
-        className="shrink-0"
-        actions={
-          <ExcelDownloadButton
-            // 클릭 시점에 현재 검색 조건으로 조회하는 비동기 모드(getRows) — F012.
-            getRows={fetchExportRows}
-            columns={INBOUND_CSV_COLUMNS}
-            filename="inbound-export"
-            label="엑셀다운로드"
-            // h-auto p-0: 링크형 버튼의 기본 상하 패딩을 없애 박스를 글자 높이에 맞춘다 —
-            // 페이지 헤더(items-end)에서 타이틀 밑선과 버튼 글자가 같은 하단선에 붙게(패딩이
-            // 있으면 박스 바닥만 맞고 글자는 떠 보인다).
-            className="h-auto p-0"
-          />
-        }
-      />
-
-      {/* 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.
-       * 입고 목록 Req(Swagger 확정)에 클라이언트·국가 파라미터가 없으므로 두 필터는 노출하지
-       * 않는 것으로 확정 — 다른 목록 화면은 각자 Swagger 확인 시 결정한다(CLAUDE.md TBD).
-       * CLIENT 데이터 격리는 그대로 서버 스코핑(lib/data)이 담당한다. */}
-      <SearchPanel
-        role={role}
-        wmsLinkOptions={wmsLinkOptions}
-        dateFieldOptions={DATE_FIELD_OPTIONS}
-        statusOptions={STATUS_OPTIONS}
-        statusLabel="입고상태"
-        keywordPlaceholder="접수번호 · SKU · 상품명 검색"
-        // 패널 표시용 초기값 — 파라미터(epoch 초)와 별도로 날짜 문자열을 준다(같은 기간).
-        defaultValues={{ dateFrom: initialPeriod.from, dateTo: initialPeriod.to }}
-        onSearch={handlePanelSearch}
-        className="shrink-0"
-      />
-
+    // 높이 채움(h-full min-h-0)·헤더/검색 고정(shrink-0)·표 안 스크롤 골격은
+    // 공용 ListScreenLayout이 강제한다 — fillHeight 계약 설명도 그쪽 참조.
+    <ListScreenLayout
+      header={
+        // 페이지 헤더를 여기(클라이언트)서 렌더하는 이유: actions의 엑셀다운로드 버튼이
+        // 현재 검색 조건(이 컴포넌트의 상태)으로 조회해야 하는데, 서버 컴포넌트(page.tsx)는
+        // 함수 prop을 클라이언트로 넘길 수 없다(RSC 경계 + 서버 액션 금지 — 원칙 7).
+        <PageHeader
+          title="입고현황"
+          // 홈(REVE-ON)은 PageHeader가 항상 붙인다 — 현재 페이지라 href는 주지 않는다
+          breadcrumbs={[{ label: "입고현황" }]}
+          actions={
+            <ExcelDownloadButton
+              // 클릭 시점에 현재 검색 조건으로 조회하는 비동기 모드(getRows) — F012.
+              getRows={fetchExportRows}
+              columns={INBOUND_CSV_COLUMNS}
+              filename="inbound-export"
+              label="엑셀다운로드"
+              // h-auto p-0: 링크형 버튼의 기본 상하 패딩을 없애 박스를 글자 높이에 맞춘다 —
+              // 페이지 헤더(items-end)에서 타이틀 밑선과 버튼 글자가 같은 하단선에 붙게(패딩이
+              // 있으면 박스 바닥만 맞고 글자는 떠 보인다).
+              className="h-auto p-0"
+            />
+          }
+        />
+      }
+      search={
+        // 이 화면의 검색 조건 = WMS LINK · 시작일 · 종료일 · 기준일자 · 입고상태 · 검색어.
+        // 입고 목록 Req(Swagger 확정)에 클라이언트·국가 파라미터가 없으므로 두 필터는 노출하지
+        // 않는 것으로 확정 — 다른 목록 화면은 각자 Swagger 확인 시 결정한다(CLAUDE.md TBD).
+        // CLIENT 데이터 격리는 그대로 서버 스코핑(lib/data)이 담당한다.
+        <SearchPanel
+          role={role}
+          wmsLinkOptions={wmsLinkOptions}
+          dateFieldOptions={DATE_FIELD_OPTIONS}
+          statusOptions={STATUS_OPTIONS}
+          statusLabel="입고상태"
+          keywordPlaceholder="접수번호 · SKU · 상품명 검색"
+          // 패널 표시용 초기값 — 파라미터(epoch 초)와 별도로 날짜 문자열을 준다(같은 기간).
+          defaultValues={{ dateFrom: initialPeriod.from, dateTo: initialPeriod.to }}
+          onSearch={handlePanelSearch}
+        />
+      }
+    >
       <InboundTable
         data={data.items}
         total={data.total}
@@ -216,6 +220,6 @@ export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialPara
         }
         // 엑셀다운로드는 페이지 헤더 actions로 이동(사용자 확정 2026-08-05) — 표 툴바에는 없음.
       />
-    </>
+    </ListScreenLayout>
   );
 }
