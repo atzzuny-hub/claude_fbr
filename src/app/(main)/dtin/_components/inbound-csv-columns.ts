@@ -18,8 +18,8 @@ export const INBOUND_CSV_COLUMNS: ExcelDownloadColumn<Inbound>[] = [
   { header: "WMS LINK", accessor: (row) => row.wmsLinkName },
   // 화면과 같은 "YYYY-MM-DD HH:mm"(UTC) 표기 — 아직 없는 단계는 빈칸
   { header: "입고접수일", accessor: (row) => formatEpochDateTime(row.reqDt, "") },
-  { header: "도착예정일", accessor: (row) => formatEpochDateTime(row.etaDt, "") },
   { header: "창고도착일", accessor: (row) => formatEpochDateTime(row.arvDt, "") },
+  { header: "입고완료일", accessor: (row) => formatEpochDateTime(row.dataUpdDt, "") },
   { header: "클라이언트", accessor: (row) => row.clntName ?? "" },
   { header: "고객명", accessor: (row) => row.contactName ?? "" },
   { header: "연락처", accessor: (row) => row.contactTel ?? "" },
