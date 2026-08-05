@@ -103,11 +103,11 @@ export interface DataTableProps<T> {
    */
   toolbarActions?: React.ReactNode;
   /**
-   * 남은 높이를 채우고 표 안에서만 스크롤한다(lg 이상). 헤더 행은 상단에 고정되고,
+   * 남은 높이를 채우고 표 안에서만 스크롤한다. 헤더 행은 상단에 고정되고,
    * 페이지네이션은 스크롤 영역 밖에 남아 항상 보인다.
    * 이 모드를 쓰려면 부모가 높이가 정해진 flex 컬럼이어야 한다 — 아니면 표 영역이 0으로
-   * 접힌다. lg 미만에서는 검색 조건이 여러 줄로 감겨 표에 남는 높이가 너무 얇아지므로
-   * 평소처럼 페이지 전체가 스크롤된다.
+   * 접힌다. 좁은 화면에서 검색 조건이 여러 줄로 감겨 남는 높이가 얇아져도 표는 최소
+   * 높이(min-h-64)를 지키고, 그마저 안 들어가면 셸의 <main>이 스크롤되는 폴백으로 넘어간다.
    */
   fillHeight?: boolean;
   className?: string;
@@ -631,9 +631,9 @@ export function DataTable<T>({
    * 그래서 화면에 걸치는 행만 그리고, 화면 밖 행들이 차지할 높이는 위/아래 스페이서 행 하나로
    * 대신 밀어 준다(스크롤바 길이·스크롤 위치는 그대로 유지된다).
    *
-   * 스크롤 주체는 화면 크기에 따라 다르다 —
-   *  - fillHeight + lg 이상: 표 컨테이너(table-container)가 스스로 스크롤된다
-   *  - 그 밖(lg 미만 · fillHeight 미사용): 앱 셸의 <main>이 스크롤된다
+   * 스크롤 주체는 상황에 따라 다르다 —
+   *  - fillHeight: 표 컨테이너(table-container)가 스스로 스크롤된다
+   *  - fillHeight 미사용(또는 표 최소 높이까지 줄어 페이지가 넘치는 폴백): 앱 셸의 <main>이 스크롤된다
    * 앱 셸이 h-dvh + overflow-hidden이라 창(window)은 아예 스크롤되지 않으므로, 창 스크롤을
    * 가정하면 스크롤 이벤트를 못 받아 첫 화면 분량만 그려진 채 멈춘다. 그래서 특정 요소를
    * 가정하지 않고 본문에서 위로 올라가며 "지금 실제로 스크롤되는" 첫 조상을 찾아 그것에 붙인다.
@@ -762,7 +762,7 @@ export function DataTable<T>({
    * 행이 그 틈으로 비친다 — 같은 색 그림자로 그 틈을 덮는다.
    */
   const stickyHeadClass = fillHeight
-    ? "lg:sticky lg:top-0 lg:z-20 lg:bg-background lg:shadow-[0_8px_0_0_var(--background)]"
+    ? "sticky top-0 z-20 bg-background shadow-[0_8px_0_0_var(--background)]"
     : undefined;
 
   /*
@@ -894,7 +894,7 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn("flex flex-col gap-3", fillHeight && "lg:min-h-0 lg:flex-1", className)}>
+    <div className={cn("flex flex-col gap-3", fillHeight && "min-h-0 flex-1", className)}>
       {/* 표 상단 툴바 — 검색영역과 표 사이. 왼쪽은 조회 결과 총 건수,
        * 오른쪽은 열 너비 초기화(resizable일 때)·열 순서 초기화(reorderable일 때)·
        * 가상 스크롤 토글·화면별 액션(toolbarActions).
@@ -963,7 +963,9 @@ export function DataTable<T>({
                 ref: scrollRef,
                 // overflow-anchor 해제 — 스크롤 앵커링이 재사용된 행에 스크롤을 붙잡아 두면
                 // 위의 "맨 위로" 복귀가 되돌려진다(Rows per page 변경 시 특히).
-                className: "lg:min-h-0 lg:flex-1 lg:[overflow-anchor:none]",
+                // min-h-64: 좁은 화면에서 검색 조건이 여러 줄로 감겨도 표가 이 밑으로는
+                // 안 얇아진다 — 그마저 안 들어가면 셸 <main>이 스크롤되는 폴백.
+                className: "min-h-64 flex-1 [overflow-anchor:none]",
                 // 표 안에서만 스크롤되므로 이 영역 자체가 키보드로 초점을 받을 수 있어야
                 // PageDown/방향키로 목록을 넘길 수 있다(마우스 없이도 스크롤 가능해야 한다).
                 tabIndex: 0,
@@ -986,7 +988,7 @@ export function DataTable<T>({
           // 순간 헤더가 그 8px만큼 위로 튄다. 표를 미리 8px 끌어올려 처음부터 붙여 둔다.
           // scroll-mt: 포커스가 위쪽 행으로 이동할 때 브라우저가 그 행을 컨테이너 맨 위에 붙이는데,
           // 그 자리는 고정 헤더(40px + 아래 8px 틈) 뒤라 포커스 링이 가려진다 — 그만큼 여백을 준다.
-          fillHeight && "lg:-mt-2 lg:[&_tbody_button]:scroll-mt-12",
+          fillHeight && "-mt-2 [&_tbody_button]:scroll-mt-12",
         )}
       >
         {resizeReady && (
