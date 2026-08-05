@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import axios from "axios";
 import { SearchPanel, type SearchPanelValues, type SelectOption } from "@/components/common/search-panel";
 import { toEpochSeconds } from "@/lib/utils/datetime";
+import { buildQueryString } from "@/lib/utils/search-params";
 // sortItems는 순수 목록 유틸(데이터 접근 아님) — Req에 정렬 파라미터가 없어 받은 페이지
 // 안에서만 재정렬하는 프런트 전용 정렬을 목 경로(lib/data)와 공유한다.
 import { sortItems } from "@/lib/data/utils";
@@ -58,10 +59,10 @@ async function fetchInboundRows(params: InboundSearchParams): Promise<Inbound[]>
   return data.map((raw) => toDomainInbound(wireInboundSchema.parse(raw)));
 }
 
-/** 입고 건수 조회 — GET /api/dtin/cnt(숫자 그대로). Req 확정 스펙대로 목록과 동일
- * 필터만 싣고 페이지·정렬 파라미터는 뺀다. */
-async function fetchInboundCount(params: InboundSearchParams): Promise<number> {
-  const filter = {
+/** 건수(/cnt)·서버 엑셀(/dn)이 공유하는 필터 부분집합 — 건수는 이대로(페이지 없음),
+ * 서버 엑셀은 여기에 pageNo·pageSize를 더한다(/dn Req는 목록과 동일 계약). 정렬은 Req에 없음. */
+function toInboundFilter(params: InboundSearchParams) {
+  return {
     wmsLinkId: params.wmsLinkId,
     startDt: params.startDt,
     endDt: params.endDt,
@@ -69,7 +70,12 @@ async function fetchInboundCount(params: InboundSearchParams): Promise<number> {
     status: params.status,
     search: params.search,
   };
-  const { data } = await axios.get<number>("/api/dtin/cnt", { params: filter });
+}
+
+/** 입고 건수 조회 — GET /api/dtin/cnt(숫자 그대로). Req 확정 스펙대로 목록과 동일
+ * 필터만 싣고 페이지·정렬 파라미터는 뺀다. */
+async function fetchInboundCount(params: InboundSearchParams): Promise<number> {
+  const { data } = await axios.get<number>("/api/dtin/cnt", { params: toInboundFilter(params) });
   return data;
 }
 
@@ -82,8 +88,8 @@ interface InboundScreenProps {
   /** 첫 진입 기본 검색 조건(최근 1주 · 1페이지, Req 계약) — 페이지(서버)가 만든 값과 첫 데이터의 조건이 항상 같다 */
   initialParams: InboundSearchParams;
   initialData: Paginated<Inbound>;
-  /** 행 상세 엑셀을 서버 생성 파일로 받을지 — 페이지(서버)가 DATA_SOURCE=api 여부로 정한다 */
-  serverRowExcel?: boolean;
+  /** 엑셀(행 상세·검색결과 전체)을 서버 생성 파일로 받을지 — 페이지(서버)가 DATA_SOURCE=api 여부로 정한다 */
+  serverExcel?: boolean;
 }
 /**
  * 입고현황의 클라이언트 검색 상태 컨테이너 — 검색 조건을 URL에 싣지 않는다(사용자 확정
@@ -98,7 +104,7 @@ export function InboundScreen({
   initialPeriod,
   initialParams,
   initialData,
-  serverRowExcel,
+  serverExcel,
 }: InboundScreenProps) {
   const [params, setParams] = useState<InboundSearchParams>(initialParams);
   const [data, setData] = useState<Paginated<Inbound>>(initialData);
@@ -157,10 +163,20 @@ export function InboundScreen({
     runSearch(parsed.success ? parsed.data : { pageNo: 0 });
   }
 
-  /** 헤더의 "검색결과 전체 다운로드"(F012) — 클릭 시점의 현재 검색 조건으로 조회한다 */
+  /** 헤더의 "검색결과 전체 다운로드"(F012, 목 폴백 CSV 경로) — 클릭 시점의 현재 검색 조건으로 조회한다 */
   function fetchExportRows(): Promise<Inbound[]> {
     return fetchInboundRows({ ...params, pageNo: 0, pageSize: EXPORT_MAX_ROWS });
   }
+
+  // 서버 엑셀 URL(실 API 모드) — /dn Req는 목록과 동일 계약(필터 + pageNo·pageSize 필수,
+  // 사용자 제공 Req 2026-08-05)이라 페이지 파라미터도 싣는다. "검색결과 전체"의 의미는
+  // CSV 폴백(fetchExportRows)과 동일하게 pageNo 0 + EXPORT_MAX_ROWS로 표현한다.
+  // params 상태가 바뀔 때마다 재계산되므로 클릭 시점의 조건이 항상 반영된다.
+  const serverExcelUrl = `/api/dtin/dn?${buildQueryString({
+    ...toInboundFilter(params),
+    pageNo: 0,
+    pageSize: EXPORT_MAX_ROWS,
+  })}`;
 
   return (
     // 높이 채움(h-full min-h-0)·헤더/검색 고정(shrink-0)·표 안 스크롤 골격은
@@ -174,18 +190,27 @@ export function InboundScreen({
           title="입고현황"
           // 홈(REVE-ON)은 PageHeader가 항상 붙인다 — 현재 페이지라 href는 주지 않는다
           breadcrumbs={[{ label: "입고현황" }]}
+          // h-auto p-0(공통): 링크형 버튼의 기본 상하 패딩을 없애 박스를 글자 높이에 맞춘다 —
+          // 페이지 헤더(items-end)에서 타이틀 밑선과 버튼 글자가 같은 하단선에 붙게(패딩이
+          // 있으면 박스 바닥만 맞고 글자는 떠 보인다).
           actions={
-            <ExcelDownloadButton
-              // 클릭 시점에 현재 검색 조건으로 조회하는 비동기 모드(getRows) — F012.
-              getRows={fetchExportRows}
-              columns={INBOUND_CSV_COLUMNS}
-              filename="inbound-export"
-              label="엑셀다운로드"
-              // h-auto p-0: 링크형 버튼의 기본 상하 패딩을 없애 박스를 글자 높이에 맞춘다 —
-              // 페이지 헤더(items-end)에서 타이틀 밑선과 버튼 글자가 같은 하단선에 붙게(패딩이
-              // 있으면 박스 바닥만 맞고 글자는 떠 보인다).
-              className="h-auto p-0"
-            />
+            serverExcel ? (
+              <ExcelDownloadButton
+                // 실 API: 서버 생성 엑셀(BFF /api/dtin/dn → Java /dtin/dn, 사용자 확정 2026-08-05).
+                downloadUrl={serverExcelUrl}
+                label="엑셀다운로드"
+                className="h-auto p-0"
+              />
+            ) : (
+              <ExcelDownloadButton
+                // 목 폴백: 클릭 시점에 현재 조건으로 조회(getRows)해 클라이언트 CSV 생성 — F012.
+                getRows={fetchExportRows}
+                columns={INBOUND_CSV_COLUMNS}
+                filename="inbound-export"
+                label="엑셀다운로드"
+                className="h-auto p-0"
+              />
+            )
           }
         />
       }
@@ -212,7 +237,7 @@ export function InboundScreen({
         total={data.total}
         page={data.page}
         pageSize={data.pageSize}
-        serverRowExcel={serverRowExcel}
+        serverRowExcel={serverExcel}
         sort={params.sort}
         order={params.order}
         loading={loading}

@@ -197,9 +197,11 @@ src/
   - ~~목록 엔드포인트 경로~~ → 확정(사용자 확인): 목록 GET `/dtin` · 건수 `/dtin/cnt` ·
     검색결과 전체 엑셀 `/dtin/dn` · 행 상세 엑셀 `/dtin/dn/{idx}`(사용자 재확정 2026-08-05) —
     정의는 `lib/api/inbound.ts`(INBOUND_API)가 단일 출처. 엑셀은 서버 생성 파일 엔드포인트라
-    Phase 1의 클라이언트 CSV 생성은 Phase 2에 서버 다운로드로 교체한다 — **행 상세는 교체
-    완료**(2026-08-05, 파일 BFF `app/api/dtin/dn/[idx]`가 스트리밍 중계 · DATA_SOURCE=api일
-    때만이고 목 폴백은 CSV 유지 · 검색결과 전체 `/dtin/dn`은 아직 CSV).
+    Phase 1의 클라이언트 CSV 생성은 Phase 2에 서버 다운로드로 교체한다 — **행 상세·검색결과
+    전체 모두 교체 완료**(2026-08-05, 파일 BFF `app/api/dtin/dn`·`dn/[idx]`가 스트리밍 중계 ·
+    **/dn Req는 목록(/dtin)과 완전 동일 계약(필터+pageNo/pageSize 필수 — 사용자 제공 Req로
+    확정, 건수 /cnt처럼 페이지가 없는 게 아님)** · "전체"는 pageNo 0+EXPORT_MAX_ROWS(1000)로
+    표현 · DATA_SOURCE=api일 때만이고 목 폴백은 CSV 유지).
     전역 래핑: **에러 응답은 래핑이 아님을 프로브로 확인**(2026-08-04) —
     `{ timestamp, path, status, error, requestId, errorCode }` 형태(`javaApiErrorSchema`).
     ~~성공 응답의 래핑 여부~~ → **비래핑 확정**(2026-08-05, 레거시 useAjax 확인 —
@@ -254,9 +256,9 @@ src/
   런타임 검증 완료**(2026-08-05, 실 로그인으로 전체 10,298건 렌더·기간 113건·취소 17건이
   API 직접 호출 대조값과 일치 — CLIENT 계정 스코핑 검증만 남음) → **WMS LINK 필터
   실연동(/wmslkmap)·WORK 상태 편입·기본 기간 1주 적용·검색 조건 URL 제거(axios→데이터
-  BFF 전환, 원칙 6·7 — 서버 액션 금지)**(2026-08-05) → **행 상세 엑셀 서버 다운로드
-  전환**(2026-08-05, GET `/api/dtin/dn/{idx}` 파일 BFF — 목 폴백은 CSV 유지) →
-  입고 검색결과 전체 엑셀(`/dtin/dn`) · 나머지 도메인(다음: 출고 `/dtob`) 순
+  BFF 전환, 원칙 6·7 — 서버 액션 금지)**(2026-08-05) → **입고 엑셀 서버 다운로드 전환
+  완료**(2026-08-05, 행 상세 GET `/api/dtin/dn/{idx}` · 검색결과 전체 GET `/api/dtin/dn`
+  파일 BFF — 목 폴백은 CSV 유지) → 나머지 도메인(다음: 출고 `/dtob`) 순
 
 ## 명령어
 

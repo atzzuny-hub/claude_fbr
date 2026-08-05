@@ -20,63 +20,69 @@ export interface ExcelDownloadColumn<T> {
   accessor: (row: T) => string | number | null | undefined;
 }
 
-interface ExcelDownloadButtonBaseProps<T> extends VariantProps<typeof buttonVariants> {
-  columns: ExcelDownloadColumn<T>[];
-  /** 확장자 제외 파일명 — 기본값: `export-YYYYMMDDHHmmss` */
+interface ExcelDownloadButtonBaseProps extends VariantProps<typeof buttonVariants> {
+  /** CSV 모드: 확장자 제외 파일명(기본 `export-YYYYMMDDHHmmss`) · 서버 모드: Disposition 부재 시 폴백(확장자 포함 권장) */
   filename?: string;
   label?: string;
-  /** getRows 조회 동안 표시할 라벨 */
+  /** getRows 조회·서버 파일 수신 동안 표시할 라벨 */
   busyLabel?: string;
   disabled?: boolean;
   className?: string;
 }
 
-/** 내보낼 행의 출처 — 이미 받아 둔 data와 클릭 시점 조회 getRows 중 정확히 하나만 준다. */
-export type ExcelDownloadButtonProps<T> = ExcelDownloadButtonBaseProps<T> &
+/** 내보낼 행의 출처 — data(보유 데이터)·getRows(클릭 시점 조회)·downloadUrl(서버 파일) 중 정확히 하나만 준다. */
+export type ExcelDownloadButtonProps<T> = ExcelDownloadButtonBaseProps &
   (
-    | { data: T[]; getRows?: never }
-    | { getRows: () => Promise<T[]>; data?: never }
+    | { data: T[]; columns: ExcelDownloadColumn<T>[]; getRows?: never; downloadUrl?: never }
+    | { getRows: () => Promise<T[]>; columns: ExcelDownloadColumn<T>[]; data?: never; downloadUrl?: never }
+    | { downloadUrl: string; data?: never; getRows?: never; columns?: never }
   );
 
 /**
- * 검색결과 전체 다운로드 버튼(F012) — 행 출처에 따라 두 모드로 동작한다.
+ * 검색결과 전체 다운로드 버튼(F012) — 행 출처에 따라 세 모드로 동작한다.
  *
- * - `data`(동기): 이미 받아 둔 조회 결과를 클릭 즉시 CSV로 저장한다(빈 목록이면 비활성).
- * - `getRows`(비동기): 클릭 시점에 현재 검색 조건의 전체 결과(페이지네이션 미적용)를
- *   조회해 저장하고, 조회 동안 busyLabel을 표시한다. 페이지를 그릴 때마다 전체 결과를
- *   미리 받아 두지 않아 매 조회 2중 호출(목록 + 전체) 비용이 없다 — 실 API 화면은 이 모드.
+ * - `data`(동기 CSV): 이미 받아 둔 조회 결과를 클릭 즉시 CSV로 저장한다(빈 목록이면 비활성).
+ * - `getRows`(비동기 CSV): 클릭 시점에 현재 검색 조건의 전체 결과(페이지네이션 미적용)를
+ *   조회해 CSV로 저장한다 — 서버 엑셀 엔드포인트가 없는(미확정) 도메인·목 폴백용.
+ * - `downloadUrl`(서버 파일): BFF 파일 엔드포인트에서 서버 생성 엑셀을 blob으로 받아
+ *   저장한다 — 파일명은 서버 Content-Disposition 우선. 서버 엑셀이 확정된 도메인의 실 API
+ *   모드용(입고 GET /api/dtin/dn — 현재 검색 조건은 호출부가 URL 쿼리로 싣는다).
  *
  * CSV는 브라우저에서 직접 생성한다(엑셀에서 바로 열리도록 UTF-8 BOM 포함).
- *
- * Phase 2 교체 지점: 서버 생성 엑셀 엔드포인트가 확정된 도메인(입고는
- * INBOUND_API.download = /dtin/dn)부터 onClick 내부를 BFF 경유 파일 다운로드로 교체한다
- * (이 컴포넌트 내부만 바뀐다). 그때는 궁극적으로 columns/데이터 조회가 서버 몫이 된다.
+ * 비동기 두 모드는 진행 동안 busyLabel을 표시하고 버튼을 비활성화한다.
  */
-export function ExcelDownloadButton<T>({
-  data,
-  getRows,
-  columns,
-  filename,
-  label = "엑셀 다운로드",
-  busyLabel = "다운로드 중…",
-  disabled,
-  className,
-  variant = "link",
-  size,
-}: ExcelDownloadButtonProps<T>) {
+export function ExcelDownloadButton<T = unknown>(props: ExcelDownloadButtonProps<T>) {
+  const {
+    filename,
+    label = "엑셀 다운로드",
+    busyLabel = "다운로드 중…",
+    disabled,
+    className,
+    variant = "link",
+    size,
+  } = props;
   const [busy, setBusy] = useState(false);
 
   async function handleClick() {
-    if (getRows) {
+    if (props.downloadUrl !== undefined) {
       setBusy(true);
       try {
-        exportRowsToCsv(await getRows(), columns, filename);
+        await downloadServerFile(props.downloadUrl, filename);
       } finally {
         setBusy(false);
       }
       return;
     }
-    exportRowsToCsv(data ?? [], columns, filename);
+    if (props.getRows !== undefined) {
+      setBusy(true);
+      try {
+        exportRowsToCsv(await props.getRows(), props.columns, filename);
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    exportRowsToCsv(props.data, props.columns, filename);
   }
 
   return (
@@ -85,7 +91,7 @@ export function ExcelDownloadButton<T>({
       variant={variant}
       size={size}
       className={cn(EXCEL_BUTTON_TONE, className)}
-      disabled={disabled || busy || (data ? data.length === 0 : false)}
+      disabled={disabled || busy || (props.data ? props.data.length === 0 : false)}
       onClick={handleClick}
     >
       <Download data-icon="inline-end" />

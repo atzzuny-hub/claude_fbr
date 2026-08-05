@@ -289,31 +289,60 @@ function parseInboundCount(json: unknown): number {
   return parsed.data;
 }
 
-/**
- * 행 단위 상세 엑셀 파일 — Java GET /dtin/dn/{idx}(서버 생성 파일, 사용자 확정 2026-08-05)의
+/*
+ * ── 서버 생성 엑셀 파일(행 상세 · 검색결과 전체) ──────────────────────
+ * Java의 파일 엔드포인트(GET /dtin/dn · /dtin/dn/{idx}, 사용자 확정 2026-08-05)를 호출해
  * 업스트림 Response를 그대로 돌려준다. 바이너리라 readJavaJson을 쓰지 않고, 스트리밍 중계는
- * 파일 BFF(app/api/dtin/dn/[idx])가 담당한다. 실 API 전용: 목 모드의 화면은 Phase 1
- * 클라이언트 CSV 경로(RowExportButton row/columns)를 그대로 쓰므로 여기로 오지 않는다 —
- * 방어적으로 404를 던진다. 401도 redirect 대신 상태로 돌려준다(BFF 전용 경로 — 화면의
- * fetch가 /login 이동을 담당).
+ * 파일 BFF(app/api/dtin/dn · dn/[idx])가 담당한다. 실 API 전용: 목 모드의 화면은 Phase 1
+ * 클라이언트 CSV 경로(RowExportButton row/columns · ExcelDownloadButton getRows)를 그대로
+ * 쓰므로 여기로 오지 않는다 — 방어적으로 404를 던진다. 401도 redirect 대신 상태로 돌려준다
+ * (BFF 전용 경로 — 화면의 fetch가 /login 이동을 담당).
  */
-export async function getInboundRowExcel(idx: number): Promise<Response> {
+
+/** 파일 엔드포인트 공통 가드 — 목 모드 차단 + 인증 후 액세스 토큰 반환. */
+async function requireExcelAccessToken(): Promise<string> {
   if (process.env.DATA_SOURCE !== "api") {
     throw new ApiError(404, "목 데이터 모드에서는 서버 엑셀 파일을 제공하지 않습니다.");
   }
   await requireSession();
-  const accessToken = await requireAccessToken();
-  const res = await getJavaApi(INBOUND_API.downloadRow(idx), { accessToken });
+  return requireAccessToken();
+}
+
+/** 파일 응답 공통 검증 — readJavaJson의 파일 버전: 성공이면 Response를 그대로 돌려준다. */
+async function readJavaFile(res: Response | null, label: string): Promise<Response> {
   if (!res) {
-    console.error(`[lib/data/inbounds] GET /dtin/dn/${idx} 호출 실패(네트워크 연결 불가)`);
+    console.error(`[lib/data/inbounds] ${label} 호출 실패(네트워크 연결 불가)`);
     throw new ApiError(502, "엑셀 파일을 내려받지 못했습니다.");
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    console.error(`[lib/data/inbounds] GET /dtin/dn/${idx} 실패: HTTP ${res.status}${body ? ` — ${body.slice(0, 500)}` : ""}`);
+    console.error(`[lib/data/inbounds] ${label} 실패: HTTP ${res.status}${body ? ` — ${body.slice(0, 500)}` : ""}`);
     throw new ApiError(res.status, res.status === 401 ? "로그인이 필요합니다." : "엑셀 파일을 내려받지 못했습니다.");
   }
   return res;
+}
+
+/** 행 단위 상세 엑셀 파일 — Java GET /dtin/dn/{idx}. */
+export async function getInboundRowExcel(idx: number): Promise<Response> {
+  const accessToken = await requireExcelAccessToken();
+  return readJavaFile(await getJavaApi(INBOUND_API.downloadRow(idx), { accessToken }), `GET /dtin/dn/${idx}`);
+}
+
+/**
+ * 검색결과 전체 엑셀 파일 — Java GET /dtin/dn. Req는 목록(/dtin)과 완전히 동일한 계약
+ * (필터 + pageNo·pageSize 필수 — 사용자 제공 Req로 확정 2026-08-05. 건수 /cnt처럼 페이지가
+ * 없는 계약이 아님에 주의). "전체" 범위는 호출부(화면)가 pageNo 0 + 넉넉한 pageSize로 정한다.
+ */
+export async function getInboundExcel(params: InboundSearchParams = {}): Promise<Response> {
+  const accessToken = await requireExcelAccessToken();
+  const { pageNo, pageSize } = resolvePageParams(params);
+  return readJavaFile(
+    await getJavaApi(INBOUND_API.download, {
+      query: { ...toInboundRequestQuery(params), pageNo, pageSize },
+      accessToken,
+    }),
+    "GET /dtin/dn",
+  );
 }
 
 export async function getInbound(idx: number): Promise<Inbound | null> {
