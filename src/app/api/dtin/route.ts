@@ -5,9 +5,9 @@ import { ApiError } from "@/lib/api/server";
 import { inboundSearchParamsSchema } from "@/types";
 
 /**
- * 입고 목록 데이터 BFF — GET /api/inbounds → Java Res(/dtin) 그대로의 **행 배열**(JSON).
+ * 입고 목록 데이터 BFF — GET /api/dtin → Java Res(/dtin) 그대로의 **행 배열**(JSON).
  * 요청 쿼리·응답 바디 모두 Java Req/Res와 같은 모양이다(사용자 확정 2026-08-05 —
- * devtools에서 보이는 것이 곧 Java 계약). 건수는 레거시처럼 별도 GET /api/inbounds/cnt.
+ * devtools에서 보이는 것이 곧 Java 계약). 건수는 레거시처럼 별도 GET /api/dtin/cnt.
  * 정규화(epoch 초→ms · 0→null · 미확정 status 강등)는 화면이 공용 변환
  * (types/inbound.ts wireInboundSchema·toDomainInbound)으로 한다.
  *

@@ -24,8 +24,8 @@ import { delay, matchesKeyword, paginate, sortItems } from "./utils";
  *
  * 공개 함수 3개 — 응답을 Res 그대로 중계하는 BFF 전환(사용자 확정 2026-08-05)에 맞춘 구성:
  *  - getInboundWireRows: 목록 — Java GET /dtin 응답(행 배열)을 **Res 원문 그대로**(검증만)
- *    돌려준다. BFF(GET /api/inbounds)가 이걸 그대로 응답한다 — devtools 응답 = Res.
- *  - getInboundCount: 건수 — GET /dtin/cnt(숫자). BFF(GET /api/inbounds/cnt)가 그대로 응답.
+ *    돌려준다. BFF(GET /api/dtin)가 이걸 그대로 응답한다 — devtools 응답 = Res.
+ *  - getInboundCount: 건수 — GET /dtin/cnt(숫자). BFF(GET /api/dtin/cnt)가 그대로 응답.
  *  - getInbounds: 위 둘을 합성해 정규화(초→ms 등)까지 끝낸 Paginated<Inbound> — 페이지(서버)의
  *    SSR 초기 데이터용. 클라이언트 재조회는 화면이 와이어 배열을 받아 직접 정규화한다
  *    (변환 공유: types/inbound.ts의 wireInboundSchema·toDomainInbound).

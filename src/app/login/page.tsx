@@ -11,13 +11,13 @@ export const metadata: Metadata = {
 /**
  * 로그인 페이지 (PRD F010, 비로그인 전용) — (main) 그룹 밖이라 AppShell 없이 렌더링된다.
  * 실 인증(2026-08-04 전환): 제출은 BFF(/api/auth/login) → Java API로 이어지며, 이미
- * 로그인된 세션이면 기본 진입 화면(/inbound)으로 보낸다.
+ * 로그인된 세션이면 기본 진입 화면(/dtin)으로 보낸다.
  * 데스크톱: 좌 브랜드 패널 + 우 폼. lg 미만: 상단 워드마크 밴드 + 폼 단독.
  * 회원가입 경로는 없다 — 계정은 운영자가 발급한다(PRD F010).
  */
 export default async function LoginPage() {
   const session = await getSession();
-  if (session) redirect("/inbound");
+  if (session) redirect("/dtin");
 
   return (
     <main className="flex flex-1">

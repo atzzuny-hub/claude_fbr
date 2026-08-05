@@ -5,9 +5,9 @@ import { ApiError } from "@/lib/api/server";
 import { inboundSearchParamsSchema } from "@/types";
 
 /**
- * 입고 건수 데이터 BFF — GET /api/inbounds/cnt → Java Res(/dtin/cnt) 그대로의 **숫자**(JSON).
+ * 입고 건수 데이터 BFF — GET /api/dtin/cnt → Java Res(/dtin/cnt) 그대로의 **숫자**(JSON).
  * Req는 목록과 동일 필터에 페이지 파라미터만 없다(확정 스펙). 화면은 레거시 관례대로
- * 첫 페이지(pageNo 0) 조회에만 이걸 함께 부른다 — /api/inbounds(목록)와 한 쌍.
+ * 첫 페이지(pageNo 0) 조회에만 이걸 함께 부른다 — /api/dtin(목록)와 한 쌍.
  */
 export async function GET(request: NextRequest) {
   if (!(await getSession())) {

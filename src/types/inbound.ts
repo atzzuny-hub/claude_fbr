@@ -63,7 +63,7 @@ export const inboundSchema = z.object({
 export type Inbound = z.infer<typeof inboundSchema>;
 
 // ── 와이어(Res 원문) ↔ 도메인 변환 ─────────────────────────────────
-// BFF(GET /api/inbounds)는 Java Res를 **배열 그대로** 중계한다(사용자 확정 2026-08-05 —
+// BFF(GET /api/dtin)는 Java Res를 **배열 그대로** 중계한다(사용자 확정 2026-08-05 —
 // devtools에서 보이는 응답이 곧 Res). 실측 확정된 와이어 특성(① 날짜 epoch "초" ② 값 없음 0
 // ③ 문서 밖 status 실재 전례 — WORK는 이후 정식 편입)을 도메인 모델(ms·null·확정 enum)로
 // 바꾸는 정규화는 받는 쪽이 한다: 화면(axios 재조회)과 lib/data(SSR 초기 조회·검증)가 공유.
@@ -159,11 +159,11 @@ export const INBOUND_DATE_FIELD_LABEL: Record<InboundDateField, string> = {
 /**
  * 목록 검색 파라미터(프런트 계약) — **필드명·의미를 Java Req(/dtin)와 그대로 통일**한다
  * (사용자 확정 2026-08-05): startDt/endDt(epoch 초)·searchDt·status·search·pageNo(0-기반)·
- * pageSize·wmsLinkId. devtools에서 보이는 GET /api/inbounds 쿼리가 곧 Java Req 모양이다.
+ * pageSize·wmsLinkId. devtools에서 보이는 GET /api/dtin 쿼리가 곧 Java Req 모양이다.
  * sort/order만 Req에 없는 프런트 전용(응답 페이지 내 재정렬 — 사용자 인정).
  *
- * 화면 검색 상태(InboundScreen)이자 데이터 BFF(GET /api/inbounds) 쿼리의 검증 스키마 —
- * 검색 조건은 URL에 싣지 않는다(원칙 6, URL은 /inbound 고정). 날짜 입력("YYYY-MM-DD") →
+ * 화면 검색 상태(InboundScreen)이자 데이터 BFF(GET /api/dtin) 쿼리의 검증 스키마 —
+ * 검색 조건은 URL에 싣지 않는다(원칙 6, URL은 /dtin 고정). 날짜 입력("YYYY-MM-DD") →
  * epoch 초 변환은 화면(toEpochSeconds, 시작 00:00:00 · 종료 23:59:59 UTC)이 하고,
  * lib/data는 빈 값 기본치(-100 · 최광역 기간 · REQ_DT)만 채운다.
  * Req에 클라이언트·국가 파라미터는 없다 — 입고 목록의 운영자 필터는 WMS LINK만 노출한다

@@ -5,5 +5,5 @@ import { redirect } from "next/navigation";
  * Phase 2에서 인증이 붙으면 "비로그인 → /login 리디렉션"이 이 흐름 앞에 추가된다.
  */
 export default function Home() {
-  redirect("/inbound");
+  redirect("/dtin");
 }

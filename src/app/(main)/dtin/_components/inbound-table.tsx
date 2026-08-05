@@ -52,7 +52,7 @@ interface InboundTableProps {
 }
 
 /**
- * DataTable을 /inbound 화면에 배선하는 얇은 래퍼 — 컬럼 정의·행 상세·행 다운로드 담당.
+ * DataTable을 /dtin(입고현황) 화면에 배선하는 얇은 래퍼 — 컬럼 정의·행 상세·행 다운로드 담당.
  * 페이지네이션·정렬은 콜백으로 부모(InboundScreen)에 위임한다: 검색 조건을 URL에 싣지
  * 않는 화면이라(사용자 확정 2026-08-05) 여기서 내비게이션하지 않는다.
  */
@@ -94,8 +94,9 @@ export function InboundTable({
     // 세 날짜는 시각까지 표시한다(DateTimeCell: 날짜 위 · 시각 아래, epoch ms → UTC 표기).
     // 아직 일어나지 않은 단계(미도착)는 값이 없어 "-"만 나온다.
     { key: "reqDt", header: "입고접수일", cell: (row) => <DateTimeCell value={row.reqDt} /> },
-    { key: "etaDt", header: "도착예정일", cell: (row) => <DateTimeCell value={row.etaDt} /> },
     { key: "arvDt", header: "창고도착일", cell: (row) => <DateTimeCell value={row.arvDt} /> },
+    // 입고 정보 변경일이 들어가있음. 이거 나중에 확인해서 알맞는 값으로 고쳐
+    { key: "etaDt", header: "입고완료일", cell: (row) => <DateTimeCell value={row.dataUpdDt} /> },
   ];
 
   return (

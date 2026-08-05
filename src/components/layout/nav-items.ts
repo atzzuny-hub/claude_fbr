@@ -30,7 +30,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { key: "inbound", label: "입고현황", href: "/inbound", icon: ArrowDownToLine, section: "common" },
+  { key: "inbound", label: "입고현황", href: "/dtin", icon: ArrowDownToLine, section: "common" },
   { key: "outbound", label: "출고현황", href: "/outbound", icon: ArrowUpFromLine, section: "common" },
   { key: "returns", label: "반품현황", href: "/returns", icon: Undo2, section: "common" },
   { key: "inventory", label: "재고현황", href: "/inventory", icon: Boxes, section: "common" },

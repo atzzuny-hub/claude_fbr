@@ -18,7 +18,7 @@ interface FieldErrors {
 }
 
 /**
- * 로그인 폼 (PRD F010) — 이메일/비밀번호 제출 → 성공 시 기본 진입 화면(/inbound)으로 이동.
+ * 로그인 폼 (PRD F010) — 이메일/비밀번호 제출 → 성공 시 기본 진입 화면(/dtin)으로 이동.
  * 형식 오류는 필드 아래 인라인으로, 인증 오류(계정 없음/비밀번호 불일치)는 폼 상단
  * 알림(role="alert")으로 구분해 보여준다. Phase 2 교체 지점: lib/data/auth.login 내부만.
  *
@@ -40,7 +40,7 @@ export function LoginForm() {
 
   // 성공 직후 이동이 굼뜨지 않도록 기본 진입 화면을 미리 받아 둔다
   useEffect(() => {
-    router.prefetch("/inbound");
+    router.prefetch("/dtin");
   }, [router]);
 
   function clearFieldError(field: keyof FieldErrors) {
@@ -70,7 +70,7 @@ export function LoginForm() {
     setPending(true);
     const result = await login(parsed.data);
     if (result.ok) {
-      router.push("/inbound");
+      router.push("/dtin");
       return; // 이동이 끝날 때까지 pending 유지 — 재제출 방지
     }
     setAuthError(LOGIN_ERROR_MESSAGE[result.error]);

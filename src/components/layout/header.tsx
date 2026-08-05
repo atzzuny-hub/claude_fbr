@@ -32,7 +32,7 @@ export function Header({ session }: HeaderProps) {
   return (
     <header className="flex h-16 shrink-0 items-center gap-4 border-b border-header-border bg-header px-4 text-header-foreground sm:px-6">
       <Link
-        href="/inbound"
+        href="/dtin"
         aria-label="Reveon FBR — 입고현황으로 이동"
         className="flex shrink-0 items-center gap-2"
       >

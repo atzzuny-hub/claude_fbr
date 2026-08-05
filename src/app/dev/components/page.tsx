@@ -82,7 +82,7 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
     getClients({ pageSize: 200 }),
   ]);
 
-  // 필터 옵션 value = 입고 행이 참조하는 수치 ID(idx) — 실제 화면(/inbound)과 같은 기준.
+  // 필터 옵션 value = 입고 행이 참조하는 수치 ID(idx) — 실제 화면(/dtin)과 같은 기준.
   const wmsLinkOptions: SelectOption[] = wmsLinksResult.items.map((link) => ({
     value: String(link.idx),
     label: link.name,
@@ -99,7 +99,7 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
   return (
     <div className="flex flex-col gap-10 pb-16">
       <div className="rounded-lg border border-dashed border-brand-300 bg-brand-50 px-4 py-2.5 text-xs font-medium text-brand-700">
-        개발 확인용 데모 페이지입니다 — 실제 메뉴 화면(/inbound 등)이 아니며, 공통 부품 동작 확인
+        개발 확인용 데모 페이지입니다 — 실제 메뉴 화면(/dtin 등)이 아니며, 공통 부품 동작 확인
         목적으로만 사용합니다.
       </div>
 
@@ -113,7 +113,7 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-foreground">SearchPanel</h2>
         {/* 데모 페이지는 지원하는 필터를 전부 켜 둔다 — 실제 화면은 필요한 옵션만 넘겨
-         * 자기 검색 조건을 구성한다(예: /inbound = WMS LINK·시작일·종료일·기준일자·검색어) */}
+         * 자기 검색 조건을 구성한다(예: /dtin(입고현황) = WMS LINK·시작일·종료일·기준일자·검색어) */}
         <SearchPanel
           basePath="/dev/components"
           role={session.role}

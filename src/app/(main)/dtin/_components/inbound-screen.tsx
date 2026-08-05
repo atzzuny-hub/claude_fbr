@@ -45,18 +45,18 @@ const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS_FILTER.map((status) => ({
 const EXPORT_MAX_ROWS = 1000;
 
 /**
- * 입고 목록 조회 — axios GET /api/inbounds(데이터 BFF). 응답은 Java Res(/dtin) 그대로의
+ * 입고 목록 조회 — axios GET /api/dtin(데이터 BFF). 응답은 Java Res(/dtin) 그대로의
  * **행 배열**이다(사용자 확정 2026-08-05 — devtools 응답 = Res). 표시 전에 공용 변환
  * (wireInboundSchema → toDomainInbound: epoch 초→ms · 0→null · 미확정 status 강등)으로
  * 도메인 행으로 정규화한다. axios가 undefined 필드는 쿼리에서 알아서 뺀다.
  * (서버 액션 금지 — 원칙 7. 스코핑·목 폴백은 BFF 뒤의 lib/data 몫.)
  */
 async function fetchInboundRows(params: InboundSearchParams): Promise<Inbound[]> {
-  const { data } = await axios.get<unknown[]>("/api/inbounds", { params });
+  const { data } = await axios.get<unknown[]>("/api/dtin", { params });
   return data.map((raw) => toDomainInbound(wireInboundSchema.parse(raw)));
 }
 
-/** 입고 건수 조회 — GET /api/inbounds/cnt(숫자 그대로). Req 확정 스펙대로 목록과 동일
+/** 입고 건수 조회 — GET /api/dtin/cnt(숫자 그대로). Req 확정 스펙대로 목록과 동일
  * 필터만 싣고 페이지·정렬 파라미터는 뺀다. */
 async function fetchInboundCount(params: InboundSearchParams): Promise<number> {
   const filter = {
@@ -67,7 +67,7 @@ async function fetchInboundCount(params: InboundSearchParams): Promise<number> {
     status: params.status,
     search: params.search,
   };
-  const { data } = await axios.get<number>("/api/inbounds/cnt", { params: filter });
+  const { data } = await axios.get<number>("/api/dtin/cnt", { params: filter });
   return data;
 }
 
@@ -83,8 +83,8 @@ interface InboundScreenProps {
 }
 /**
  * 입고현황의 클라이언트 검색 상태 컨테이너 — 검색 조건을 URL에 싣지 않는다(사용자 확정
- * 2026-08-05, URL은 /inbound 고정). 조건·정렬·페이지는 전부 이 컴포넌트의 상태이고,
- * 변경 시 axios로 데이터 BFF(/api/inbounds)를 재조회한다(레거시 SPA와 같은 동작 —
+ * 2026-08-05, URL은 /dtin 고정). 조건·정렬·페이지는 전부 이 컴포넌트의 상태이고,
+ * 변경 시 axios로 데이터 BFF(/api/dtin)를 재조회한다(레거시 SPA와 같은 동작 —
  * 새로고침하면 기본 조건으로 초기화되고, 조건이 담긴 링크 공유는 지원하지 않는다:
  * 의도된 트레이드오프).
  */
@@ -122,7 +122,7 @@ export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialPara
           window.location.href = "/login";
           return;
         }
-        console.error("[inbound] GET /api/inbounds 실패:", error);
+        console.error("[inbound] GET /api/dtin 실패:", error);
       })
       .finally(() => {
         if (requestSeqRef.current === seq) setLoading(false);
