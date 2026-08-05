@@ -159,8 +159,13 @@ src/
   ② 서비스 계정(`GOOGLE_SA_*`): **일반 드라이브에선 불가 확정** — 서비스 계정 저장용량 0
   (실측 2026-08-05, 403 storageQuotaExceeded). 공유 드라이브 폴더 전제의 대안 모드.
   조직(reve-on.com) 정책이 SA 키 생성도 차단해 개인 계정 GCP 프로젝트(reve-sheet-export)로
-  우회 중. **남은 확인**: ① 생성된 시트 정리(보존) 정책 ② 운영 시 회사 계정/공유 드라이브로
-  이전 여부 ③ PRD 반영
+  우회 중. **시트 접근 = 폴더 링크 공유 확정(사용자 2026-08-06)**: 대상 폴더에
+  anyone/reader(allowFileDiscovery=false — "링크가 있는 모든 사용자 – 뷰어") 권한을 걸어
+  생성 시트가 상속 → 받는 사람은 구글 로그인 없이 링크만으로 읽기전용 열람(익명 접근 실측
+  확인, Drive API로 부여 완료 — 코드 무변경). 트레이드오프 수용: URL이 곧 접근 수단이라
+  링크 유출 = 데이터 노출이며, 공개 상태 시트가 계속 누적되므로 아래 ①과 연계 필요.
+  **남은 확인**: ① 생성된 시트 정리(보존) 정책 ② 운영 시 회사 계정/공유 드라이브로
+  이전 여부(Workspace 정책이 외부 링크 공유를 막을 수 있어 링크 공유 재확인 필요) ③ PRD 반영
 - 인증: JWT 확정 + 엔드포인트 3종 확정(사용자 제공 2026-08-04, `lib/api/auth.ts`):
   POST `/auth/login`(Req email/password → Res에 accessToken·refreshToken·auth 레벨 등) ·
   `/auth/logout`(Req refreshToken → true) · `/auth/token`(재발급). 토큰은 응답 바디로 오며
