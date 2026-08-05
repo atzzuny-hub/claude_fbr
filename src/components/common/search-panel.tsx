@@ -85,7 +85,7 @@ export interface SearchPanelValues {
 
 export interface SearchPanelProps {
   /**
-   * 조회 시 router.push할 목록 화면 경로 (예: "/outbound") — URL 모드.
+   * 조회 시 router.push할 목록 화면 경로 (예: "/dtob") — URL 모드.
    * 생략하면 **상태 모드**: 내비게이션 없이 onSearch 콜백만 호출한다. 검색 조건을 URL에
    * 싣지 않는 화면(입고 — 사용자 확정 2026-08-05, URL은 경로 고정)이 이 모드를 쓴다.
    */

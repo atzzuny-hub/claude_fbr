@@ -96,7 +96,7 @@ src/
 |------|--------|------------|----------|
 | 로그인 | /login | — | 비로그인 |
 | 입고현황 | /dtin | Inbound | 공통(데이터 스코핑) |
-| 출고현황 | /outbound | Outbound | 공통(데이터 스코핑) |
+| 출고현황 | /dtob | Outbound | 공통(데이터 스코핑) |
 | 반품현황 | /returns | Return | 공통(데이터 스코핑) |
 | 재고현황 | /inventory | InventoryItem | 공통(데이터 스코핑) |
 | SKU | /sku | Sku | 공통(데이터 스코핑) |
