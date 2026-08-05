@@ -50,9 +50,9 @@
 4. `API_BASE_URL`은 서버 전용 환경변수 — `NEXT_PUBLIC_` 접두사 사용 금지
 5. 인증/세션 토큰을 localStorage·sessionStorage에 저장하지 않는다 (httpOnly 쿠키 기반)
 6. **목록 검색 조건(필터·페이지·정렬)은 URL 쿼리에 싣지 않는다**(사용자 확정 2026-08-05) —
-   URL은 메뉴 경로로 고정(`/inbound` 등). 첫 진입은 페이지(서버)가 기본 조건(입고: 최근
+   URL은 메뉴 경로로 고정(`/dtin` 등 — 라우트명은 Java API 경로와 통일, 사용자 확정 2026-08-05). 첫 진입은 페이지(서버)가 기본 조건(입고: 최근
    1주·1페이지)으로 조회해 내려주고, 이후 조회·페이지·정렬은 클라이언트 상태 +
-   **axios → 데이터 BFF Route Handler**(`app/api/inbounds/route.ts` 패턴, 쿼리는 zod
+   **axios → 데이터 BFF Route Handler**(`app/api/dtin/route.ts` 패턴, 쿼리는 zod
    재검증, BFF가 lib/data 경유)로 갱신한다. **BFF의 요청·응답 계약은 Java Req/Res와
    그대로 통일**(사용자 확정 2026-08-05 — devtools에서 보이는 것이 곧 Java 계약):
    - 요청: `startDt`/`endDt`(epoch 초) · `searchDt` · `status` · `search` ·
@@ -60,7 +60,7 @@
      `sort`/`order`만 Req에 없는 프런트 전용. 날짜 문자열→epoch 변환은 화면
      (`toEpochSeconds`, lib/utils/datetime)이 한다.
    - 응답: 목록 = **Res 그대로의 행 배열**(무변환 중계 — sipDt 등 미사용 필드 포함,
-     행 스키마 검증만) · 건수 = 별도 `GET /api/inbounds/cnt`(숫자 그대로). 화면은
+     행 스키마 검증만) · 건수 = 별도 `GET /api/dtin/cnt`(숫자 그대로). 화면은
      레거시 관례대로 **첫 페이지(pageNo 0) 조회에만 건수를 함께 부르고**, 페이지
      이동 시엔 직전 total을 유지한다. 정규화(초→ms · 0→null · 미확정 status 강등)와
      페이지 내 재정렬은 받는 쪽 공용 변환(types/inbound.ts `wireInboundSchema` ·
@@ -76,7 +76,7 @@
 
 ```
 src/
-├── app/            # App Router 라우트 (app/api/auth = 인증 BFF · app/api/inbounds = 입고 데이터 BFF, 도메인별 순차 추가)
+├── app/            # App Router 라우트 (app/api/auth = 인증 BFF · app/api/dtin = 입고 데이터 BFF, 도메인별 순차 추가)
 ├── components/
 │   ├── ui/         # shadcn 생성 컴포넌트 (직접 수정 최소화)
 │   └── common/     # 공통 부품: SearchPanel, DataTable, StatusStepper, ExcelDownloadButton
@@ -95,7 +95,7 @@ src/
 | 메뉴 | 라우트 | 도메인 타입 | 접근 권한 |
 |------|--------|------------|----------|
 | 로그인 | /login | — | 비로그인 |
-| 입고현황 | /inbound | Inbound | 공통(데이터 스코핑) |
+| 입고현황 | /dtin | Inbound | 공통(데이터 스코핑) |
 | 출고현황 | /outbound | Outbound | 공통(데이터 스코핑) |
 | 반품현황 | /returns | Return | 공통(데이터 스코핑) |
 | 재고현황 | /inventory | InventoryItem | 공통(데이터 스코핑) |
@@ -107,7 +107,7 @@ src/
 | 업체관리 | /vendors | Vendor | 운영자 전용 |
 
 - 메뉴 표시명은 위 한국어(및 SKU/NEW/WMS)를 그대로 사용 — 라우트명은 코드 내부용
-- 로그인 후 기본 진입: `/inbound` (입고현황)
+- 로그인 후 기본 진입: `/dtin` (입고현황)
 - 클라이언트 소유 모델(Outbound, Return, InventoryItem, Sku, WmsRequest)에는
   `client_id` 귀속 필드 필수. 물류 모델에는 국가·WMS LINK 필드 포함
   (실제 필드명은 Swagger 확인 후 통일 — 그 전까지 잠정 표기)
@@ -212,11 +212,14 @@ src/
     (스코핑이 안 되면 보안 이슈 — 백엔드 확인 요청)
   - 목록 Req에 정렬 파라미터가 없어 응답 페이지 안에서만 재정렬 중(기본 500건이라 실사용
     영향 작음) — Java에 sort 파라미터 실재 여부 확인 필요
-  - ~~startDt/endDt 시간대 실확인 필요~~ → **UTC+0 확정(사용자 확인 2026-08-05)**:
-    이 시스템의 날짜 축은 UTC+0 하나 — Req 변환(`toEpochSeconds`, Date.UTC 조립) ·
-    응답 epoch 표시(formatEpoch*, toISOString) · 기본 기간 "오늘"(`recentPeriodUtc`) ·
-    검색 패널 초기화까지 전부 UTC. 레거시 캡처도 부합(startDt가 정확히 UTC 자정 경계).
-    로컬(KST) 기준 날짜 계산 금지 — "오늘"을 로컬로 만들면 KST 새벽에 하루 어긋난다
+  - ~~시간대~~ → **확정(사용자 2026-08-05, 두 축)**: ① **데이터 축은 UTC epoch**
+    (와이어 초 → 도메인 ms). Req의 startDt/endDt 경계도 **UTC 자정 기준**
+    (`toEpochSeconds`, Date.UTC 조립 — 레거시 캡처의 startDt가 정확히 UTC 자정,
+    Java 비교 축과 동일해야 같은 검색 결과). ② **표시와 "오늘"은 KST(+9 고정)** —
+    formatEpoch*가 +9 오프셋 후 표기(레거시 어드민과 동일: UTC 02:22 → 화면 11:22),
+    기본 기간 "오늘"도 KST 달력(`recentPeriodKst`). 고정 오프셋인 이유: SSR·브라우저
+    양쪽 렌더라 실행 환경 시간대(toLocaleString)를 쓰면 하이드레이션이 어긋난다.
+    표시는 KST·경계는 UTC 자정인 비대칭은 레거시 동작의 계승(의도된 것)
   - **필수 파라미터 확정(실서버 프로브 2026-08-05)**: `startDt`·`endDt`·`searchDt`는
     /dtin·/dtin/cnt 공통 필수(하나라도 빠지면 400, 바디에 errorCode 없음) ·
     /dtin은 `pageNo`·`pageSize`도 필수 · 선택은 status/search뿐.
