@@ -1,21 +1,24 @@
 import { z } from "zod";
-import { baseSearchParamsSchema, countrySchema } from "./common";
+import { baseSearchParamsSchema } from "./common";
 import { inboundStatusFilterSchema, inboundStatusSchema } from "./status";
 
 /**
  * Inbound (입고) — 입고 목록 API 응답 스키마 그대로(Swagger 확정, 필드명 변경 금지).
- * 날짜류는 전부 UTC(+00:00) epoch 밀리초(integer) — 표시할 때는 lib/utils/datetime의
- * formatEpoch* 계열을 쓴다(문자열 파싱 금지).
+ * 이 도메인 모델의 날짜류는 전부 UTC(+00:00) epoch 밀리초(integer) — 표시할 때는
+ * lib/utils/datetime의 formatEpoch* 계열을 쓴다(문자열 파싱 금지).
+ * ※ 실서버 와이어(실측 2026-08-05)는 문서 표기와 달리 epoch "초" · 값 없음 = 0 ·
+ * 문서 밖 status(WORK)가 온다 — lib/data/inbounds.ts(wireInboundSchema →
+ * toDomainInbound)가 ms·null·확정 enum으로 정규화해 이 모델을 채운다. 목데이터·화면은
+ * 이 모델(ms) 전제 그대로다.
  *
  * 응답에 클라이언트 ID가 없다(clntName뿐) — CLIENT 데이터 격리는 서버(API/BFF)가 세션으로
  * 스코핑하는 전제다. Phase 1 목데이터 스코핑은 lib/data/inbounds.ts가 이름으로 잇는다.
  *
- * ※ Swagger 대비 우리 쪽에서 느슨하게 둔 부분(연동 시 확인):
- *  - etaDt/arvDt: 명세에 nullable 표기가 없지만, 미도래 단계(예: 예정 상태의 창고
- *    도착일)는 값이 있을 수 없으므로 nullable로 모델링했다 — 실제 응답이 0/누락/값 중
- *    무엇을 주는지 확인 필요.
- *  - sipDt(배송일): 사용자 확정으로 제거(2026-08 "이제 안 씀") — 응답에 남아 있어도
- *    무시한다(화면·CSV·목데이터 전부에서 뺌).
+ * ※ Swagger 대비 우리 쪽에서 느슨하게 둔 부분:
+ *  - etaDt/arvDt: 명세에 nullable 표기가 없지만 미도래 단계는 값이 없어야 정상이라
+ *    nullable로 모델링 — 실측 확인됨(와이어는 0으로 주고, 정규화가 null로 바꾼다).
+ *  - sipDt(배송일): 사용자 확정으로 제거(2026-08 "이제 안 씀") — 실제 응답에 남아
+ *    있음(0) 확인, 무시한다(화면·CSV·목데이터 전부에서 뺌).
  */
 
 /** 제품 목록(SKU LIST) 한 줄 — 행 확장 상세의 상품 표와 1:1 */
@@ -38,8 +41,13 @@ export const inboundSchema = z.object({
   status: inboundStatusSchema, // 입고상태 (PLAN | STANDBY | COMPLETED | CANCELED | UNKNOW)
   ganNo: z.string().nullable(), // 접수번호 (마켓주문번호)
   clntName: z.string().nullable(), // 클라이언트 이름
-  cntyCd: countrySchema, // 국가코드
-  reqDt: z.number().int(), // 접수일 (UTC epoch ms)
+  // 국가코드 — 확정 enum이 아니라 열린 문자열: 실데이터에 문서 밖 국가가 실재했고(SG,
+  // 2026-08-05 실측 후 정식 추가) 새 국가가 또 와도 목록이 깨지면 안 된다. 표시는
+  // countryLabel()/CountryCell이 폴백(모르는 코드는 코드 그대로) 처리한다.
+  cntyCd: z.string(),
+  // 접수일 (UTC epoch ms) — 명세상 필수지만 실데이터에 0(=값 없음)인 행이 실재(WORK 행에서
+  // 실측 2026-08-05). 와이어 정규화가 0→null로 바꾸므로 nullable로 모델링한다(regDt 동일).
+  reqDt: z.number().int().nullable(),
   etaDt: z.number().int().nullable(), // 도착예정일 (UTC epoch ms)
   arvDt: z.number().int().nullable(), // 창고 도착일 (UTC epoch ms)
   prodList: z.array(inboundSkuSchema), // 제품 목록(SKU LIST)
@@ -49,7 +57,7 @@ export const inboundSchema = z.object({
   dataId: z.string(), // 입고 아이디 (WMS 고유 아이디)
   dataRegDt: z.number().int().nullable(), // 입고 정보 생성일 (UTC epoch ms)
   dataUpdDt: z.number().int().nullable(), // 입고 정보 변경일 (UTC epoch ms)
-  regDt: z.number().int(), // FBR 시스템 정보 등록일 (UTC epoch ms)
+  regDt: z.number().int().nullable(), // FBR 시스템 정보 등록일 (UTC epoch ms) — reqDt와 같은 이유로 nullable
   updDt: z.number().int().nullable(), // FBR 시스템 정보 변경일 (UTC epoch ms)
 });
 export type Inbound = z.infer<typeof inboundSchema>;
@@ -69,11 +77,12 @@ export const INBOUND_DATE_FIELD_LABEL: Record<InboundDateField, string> = {
 };
 
 /**
- * 목록 검색 파라미터 — URL 쿼리(프런트 계약)는 기존 이름을 유지하고, Req 필드로의 변환은
- * Phase 2 BFF가 담당한다: dateFrom/dateTo → startDt/endDt(epoch), dateField → searchDt,
- * keyword → search, page → pageNo(0-base), pageSize → pageSize.
- * startDt/endDt는 날짜+시:분 정밀도의 datetime(사용자 확인, 예시 epoch 10자리=초 단위) —
- * 검색 패널도 datetime-local(분 단위)로 받는다.
+ * 목록 검색 파라미터(프런트 계약) — 화면 검색 상태이자 서버 액션(searchInbounds) 입력의
+ * 검증 스키마다. 검색 조건은 URL에 싣지 않는다(사용자 확정 2026-08-05, CLAUDE.md 원칙 6) —
+ * URL은 /inbound 고정이고 이 값들은 InboundScreen(클라이언트 상태)에 산다.
+ * Req 필드로의 변환은 lib/data가 담당한다: dateFrom/dateTo → startDt/endDt(epoch 초,
+ * 미입력 시 최광역 범위), dateField → searchDt, keyword → search, page → pageNo(0-base),
+ * wmsLinkId 미선택 → -100(전체 센티널).
  * Req에 클라이언트·국가 파라미터는 없다 — 입고 목록의 운영자 필터는 WMS LINK만 노출한다
  * (CLAUDE.md TBD였던 항목이 입고 화면에 한해 해소됨).
  */

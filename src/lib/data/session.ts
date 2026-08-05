@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { SESSION_COOKIE } from "@/lib/auth/cookies";
+import { ACCESS_TOKEN_COOKIE, SESSION_COOKIE } from "@/lib/auth/cookies";
 import { sessionSchema, type Session } from "@/types";
 
 /**
@@ -42,6 +42,27 @@ export async function requireSession(): Promise<Session> {
   const session = await getSession();
   if (!session) redirect("/login");
   return session;
+}
+
+/**
+ * Java API 호출용 액세스 토큰 — lib/data가 실 API 도메인(Phase 2)에서 Authorization
+ * 헤더에 실어 보낸다. httpOnly 쿠키라 브라우저 JS는 못 읽는다(원칙 5) — 이 함수는 서버
+ * 컴포넌트/BFF에서만 호출된다. 비로그인/만료(쿠키 없음)면 null.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  const jar = await cookies();
+  return jar.get(ACCESS_TOKEN_COOKIE)?.value ?? null;
+}
+
+/**
+ * 실 API 호출 전 필수 가드 — 세션 쿠키는 있는데 액세스 토큰 쿠키가 없는(드문 불일치)
+ * 경우까지 포함해 로그인으로 보낸다. requireSession과 별도로 두는 이유: 세션 쿠키 존재
+ * 여부와 액세스 토큰 쿠키 존재 여부는 이론상 따로 깨질 수 있다(예: 손상된 쿠키 일부만 삭제).
+ */
+export async function requireAccessToken(): Promise<string> {
+  const token = await getAccessToken();
+  if (!token) redirect("/login");
+  return token;
 }
 
 /**
