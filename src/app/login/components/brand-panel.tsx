@@ -11,12 +11,15 @@ import { COUNTRY, COUNTRY_LABEL, type Country } from "@/types";
 /**
  * 노선도 viewBox(0 0 420 210) 좌표 — 허브 분기점(x=78,y=105)에서 각 국가 노드로.
  * begin은 음수(과거 시작) — 양수 지연을 주면 시작 전 펄스 원이 기저 위치인 SVG 원점(0,0)에
- * 그대로 보이는 유령 점이 생긴다(실측 확인). 음수면 로드 시점에 이미 경로 위 중간 지점에 있다.
+ * 그대로 보이는 유령 점이 생기니(실측 확인) 음수로. 로드 시점에 이미 경로 위 중간 지점에 있다.
+ * y는 railPath의 엘보(반지름 16, 분기 y=105) 제약 안에서 고른다 — 위쪽 노드는 y ≤ 89-16,
+ * 아래쪽은 y ≥ 121+16이어야 V 구간이 뒤집히지 않는다.
  */
 const RAIL_GEOMETRY: Record<Country, { y: number; dur: string; begin: string }> = {
-  PH: { y: 41, dur: "5.2s", begin: "0s" },
-  MY: { y: 105, dur: "3.8s", begin: "-1.4s" },
-  VN: { y: 169, dur: "5.6s", begin: "-2.6s" },
+  PH: { y: 25, dur: "5.2s", begin: "0s" },
+  MY: { y: 73, dur: "3.8s", begin: "-1.4s" },
+  VN: { y: 137, dur: "5.6s", begin: "-2.6s" },
+  SG: { y: 185, dur: "4.6s", begin: "-3.4s" },
 };
 
 /** 허브(y=105)에서 y까지 — 수평 진행 후 라운드 엘보 2번으로 노드 높이에 도킹하는 노선 */

@@ -1,6 +1,6 @@
 import type { ExcelDownloadColumn } from "@/components/common/excel-download-button";
 import { formatEpochDateTime } from "@/lib/utils/datetime";
-import { COUNTRY_LABEL, INBOUND_STATUS_LABEL, type Inbound } from "@/types";
+import { countryLabel, INBOUND_STATUS_LABEL, type Inbound } from "@/types";
 
 /**
  * 입고 CSV 컬럼 — "검색결과 전체 다운로드"(InboundDownloadButton)와 행 단위 다운로드
@@ -14,7 +14,7 @@ export const INBOUND_CSV_COLUMNS: ExcelDownloadColumn<Inbound>[] = [
   { header: "접수번호", accessor: (row) => row.ganNo ?? "" },
   { header: "입고상태", accessor: (row) => INBOUND_STATUS_LABEL[row.status] },
   { header: "상태 원본 코드", accessor: (row) => row.statusOriginalCode ?? "" },
-  { header: "국가", accessor: (row) => COUNTRY_LABEL[row.cntyCd] },
+  { header: "국가", accessor: (row) => countryLabel(row.cntyCd) },
   { header: "WMS LINK", accessor: (row) => row.wmsLinkName },
   // 화면과 같은 "YYYY-MM-DD HH:mm"(UTC) 표기 — 아직 없는 단계는 빈칸
   { header: "입고접수일", accessor: (row) => formatEpochDateTime(row.reqDt, "") },

@@ -8,7 +8,8 @@ import { z } from "zod";
 
 // ── 국가 ──────────────────────────────────────────────────────────
 // 확장 가능하게 배열 기반으로 유지 (신규 진출국 추가 시 이 배열만 수정)
-export const COUNTRY = ["PH", "MY", "VN"] as const;
+// SG: 실서버 입고 데이터로 확인되어 추가(실측 2026-08-05)
+export const COUNTRY = ["PH", "MY", "VN", "SG"] as const;
 export type Country = (typeof COUNTRY)[number];
 export const countrySchema = z.enum(COUNTRY);
 
@@ -16,7 +17,17 @@ export const COUNTRY_LABEL: Record<Country, string> = {
   PH: "필리핀",
   MY: "말레이시아",
   VN: "베트남",
+  SG: "싱가포르",
 };
+
+/**
+ * 국가 표시명 — 아는 국가는 한글명, 모르는 코드는 코드 그대로 돌려준다.
+ * 실데이터에 문서 밖 국가가 등장한 전례(SG) 때문에, 목록 표시 경로는 모르는 국가로
+ * 화면이 깨지지 않게 이 폴백을 쓴다(COUNTRY_LABEL 직접 인덱싱은 확정 Country일 때만).
+ */
+export function countryLabel(code: string): string {
+  return COUNTRY_LABEL[code as Country] ?? code;
+}
 
 // ── Java API 공통 에러 바디 ────────────────────────────────────────
 // 프로브로 확인(2026-08-04, GET /dtin 무토큰 401 응답): 에러는 { code, data, message }

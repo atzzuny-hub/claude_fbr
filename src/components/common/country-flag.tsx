@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { COUNTRY_LABEL, type Country } from "@/types";
+import { countryLabel, type Country } from "@/types";
 
 /*
  * 국기 아이콘 — 국가 코드별 인라인 SVG.
@@ -53,10 +53,31 @@ const FLAGS: Record<Country, React.ReactNode> = {
       />
     </>
   ),
+  // 싱가포르 — 위 적색 / 아래 백색, 좌상단에 흰 초승달(MY와 같은 원 겹치기)과 오각형 배열의
+  // 별 5개(이 크기에선 점으로 단순화 — 배색·배치만 맞춘다)
+  SG: (
+    <>
+      <rect width="16" height="6" fill="#EE2536" />
+      <rect y="6" width="16" height="6" fill="#fff" />
+      <circle cx="2.9" cy="3" r="1.9" fill="#fff" />
+      <circle cx="3.6" cy="3" r="1.7" fill="#EE2536" />
+      {[
+        [5.4, 1.8],
+        [4.4, 2.6],
+        [6.4, 2.6],
+        [4.8, 3.8],
+        [6.0, 3.8],
+      ].map(([x, y]) => (
+        <circle key={`${x}-${y}`} cx={x} cy={y} r="0.4" fill="#fff" />
+      ))}
+    </>
+  ),
 };
 
 interface CountryFlagProps {
-  country: Country;
+  /** 확정 Country 외의 코드도 허용 — 실데이터에 문서 밖 국가가 온 전례(SG) 때문에
+   * 모르는 코드는 국기 없이 코드 텍스트로 강등 표시한다(화면이 깨지는 것보다 낫다). */
+  country: Country | (string & {});
   className?: string;
 }
 
@@ -64,28 +85,31 @@ interface CountryFlagProps {
  * 국가 코드에 해당하는 국기만 그린다 — 이름은 함께 쓰는 쪽에서 텍스트로 붙인다
  * (국기만으로 국가를 식별하게 두지 않기 위해). 그래서 기본은 aria-hidden.
  * 국기 단독으로 쓸 일이 생기면 aria-hidden을 벗기고 role="img" + aria-label을 붙여야 한다.
+ * 국기가 없는(모르는) 코드는 아무것도 그리지 않는다.
  */
 export function CountryFlag({ country, className }: CountryFlagProps) {
+  const flag = (FLAGS as Partial<Record<string, React.ReactNode>>)[country];
+  if (!flag) return null;
   return (
     <svg
       viewBox="0 0 16 12"
       aria-hidden="true"
-      // 흰색이 많은 국기(PH/MY)가 흰 배경에서 경계를 잃지 않도록 얇은 테두리를 겹쳐 둔다
+      // 흰색이 많은 국기(PH/MY/SG)가 흰 배경에서 경계를 잃지 않도록 얇은 테두리를 겹쳐 둔다
       className={cn("h-3 w-4 shrink-0 rounded-[1px] ring-1 ring-black/10", className)}
     >
-      {FLAGS[country]}
+      {flag}
     </svg>
   );
 }
 
-/** 국기 + 국가명 한 쌍 — 목록 셀에서 쓰는 기본 표기 */
+/** 국기 + 국가명 한 쌍 — 목록 셀에서 쓰는 기본 표기. 모르는 코드는 코드 그대로(국기 없이). */
 export function CountryCell({ country, className }: CountryFlagProps) {
   return (
     <span className={cn("flex items-center gap-1.5", className)}>
       <CountryFlag country={country} />
       {/* 국기는 그대로 두고(shrink-0), 열 폭이 좁아지면 국가명만 …으로 줄인다.
          truncate의 overflow-hidden이 flex 자식 최소너비를 0으로 만들어 줄어들 수 있다. */}
-      <span className="truncate">{COUNTRY_LABEL[country]}</span>
+      <span className="truncate">{countryLabel(country)}</span>
     </span>
   );
 }
