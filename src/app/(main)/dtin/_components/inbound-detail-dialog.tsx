@@ -40,9 +40,6 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
       <DialogContent aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>입고 상세</DialogTitle>
-          {row && (
-            <span className="font-mono text-sm text-muted-foreground">{row.ganNo ?? row.dataId}</span>
-          )}
         </DialogHeader>
 
         {row && (
@@ -62,8 +59,7 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
 
             {/* 좁은 화면에서는 한 열, 넓어지면 세 열로 — 라벨 위, 값 아래(읽기 전용) */}
             <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 md:grid-cols-3">
-              <DetailField label="접수번호" value={row.ganNo ?? EMPTY} mono />
-              <DetailField label="클라이언트" value={row.clntName ?? EMPTY} />
+              <DetailField label="주문번호" value={row.ganNo ?? EMPTY} mono />
               <DetailField label="WMS LINK" value={row.wmsLinkName} />
               <DetailField
                 label="입고상태"
@@ -73,14 +69,15 @@ export function InboundDetailDialog({ row, open, onOpenChange }: InboundDetailDi
                     ? `${INBOUND_STATUS_LABEL[row.status]} (${row.statusOriginalCode})`
                     : INBOUND_STATUS_LABEL[row.status]
                 }
-              />
+              />              
+              <DetailField label="접수번호" value={row.dataId ?? EMPTY} />
+              
+              
               <DetailField label="고객명" value={row.contactName ?? EMPTY} mono />
               <DetailField label="고객연락처" value={row.contactTel ?? EMPTY} mono />
               <DetailField label="입고접수일" value={formatEpochDateTime(row.reqDt, EMPTY)} mono />
               <DetailField label="창고도착일" value={formatEpochDateTime(row.arvDt, EMPTY)} mono />
               <DetailField label="입고완료일" value={formatEpochDateTime(row.dataUpdDt, EMPTY)} mono />
-              <DetailField label="입고 ID" value={row.dataId} mono />
-              <DetailField label="정보 변경일" value={formatEpochDateTime(row.updDt, EMPTY)} mono />
             </dl>
 
             <section className="flex flex-col gap-2">

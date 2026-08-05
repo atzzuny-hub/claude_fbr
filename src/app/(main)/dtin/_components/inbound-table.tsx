@@ -81,7 +81,8 @@ export function InboundTable({
   // 배송일(sipDt)은 사용자 확정으로 제외).
   // 여기서 빠진 클라이언트·제품·수량은 행 확장(+) 상세와 CSV로 옮겼다.
   const columns: DataTableColumn<Inbound>[] = [
-    { key: "ganNo", header: "접수번호", cell: (row) => nullableCell(row.ganNo), cellClassName: "font-mono" },
+    { key: "ganNo", header: "주문번호", cell: (row) => nullableCell(row.ganNo), cellClassName: "font-mono" },
+    { key: "dataId", header: "접수번호", cell: (row) => nullableCell(row.dataId), cellClassName: "font-mono" },
     {
       key: "status",
       header: "입고상태",
