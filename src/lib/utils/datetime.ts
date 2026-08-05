@@ -53,6 +53,23 @@ export function formatEpochDateTime(ms: number | null | undefined, fallback = "-
 }
 
 /**
+ * 검색 패널의 날짜("YYYY-MM-DD")/날짜시간("YYYY-MM-DDTHH:mm[:ss]") 문자열 → epoch 초(10자리, UTC).
+ * 날짜만 오면(길이 10) 시작 00:00:00 · 종료 23:59:59로 확장한다(검색 패널은 날짜만 받는다 —
+ * 사용자 확정. 종료 경계 :59초는 레거시 요청 캡처와 동일 — 23:59:00이면 마지막 59초 행이 빠진다).
+ * Req(/dtin)의 startDt/endDt가 이 값을 그대로 쓴다(프런트 파라미터 = Req 통일, 2026-08-05).
+ * Date.UTC로 직접 조립하는 이유: new Date(문자열)은 실행 환경 TZ에 좌우될 수 있는데
+ * 이 시스템의 날짜 축은 UTC+0 하나다 — UTC로 고정한다.
+ */
+export function toEpochSeconds(dateBound: string, endOfDay: boolean): number {
+  const normalized =
+    dateBound.length === 10 ? `${dateBound}T${endOfDay ? "23:59:59" : "00:00:00"}` : dateBound.slice(0, 19);
+  const [datePart, timePart] = normalized.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute, second] = (timePart ?? "00:00:00").split(":").map(Number);
+  return Math.floor(Date.UTC(year, month - 1, day, hour, minute, second || 0) / 1000);
+}
+
+/**
  * 최근 N일 기간("YYYY-MM-DD" 쌍, UTC 기준) — 시작일 = 오늘-N일, 종료일 = 오늘.
  * 목록 화면의 기본 기간(입고: 최근 1주 — 사용자 확정 2026-08-05)을 만들 때 쓴다:
  * 서버(page.tsx 첫 진입)와 브라우저(SearchPanel 초기화 버튼)가 같은 함수를 써서 같은 값을

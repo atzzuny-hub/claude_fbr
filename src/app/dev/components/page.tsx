@@ -13,6 +13,7 @@ import {
   type InboundStatus,
 } from "@/types";
 import { flattenSearchParams } from "@/lib/utils/search-params";
+import { toEpochSeconds } from "@/lib/utils/datetime";
 import { PageHeader } from "@/components/common/page-header";
 import { SearchPanel, type ClientFilterOption, type SelectOption } from "@/components/common/search-panel";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -59,15 +60,18 @@ export default async function DevComponentsPage({ searchParams }: DevComponentsP
   const page = Number(flat.page) > 0 ? Number(flat.page) : 1;
   const pageSize = Number(flat.pageSize) > 0 ? Number(flat.pageSize) : 10;
 
+  // 검색 파라미터는 Req(/dtin) 계약(startDt/endDt epoch 초 · searchDt · search · pageNo 0-기반).
+  // 이 데모는 URL 모드 SearchPanel(dateFrom 문자열)을 쓰므로 여기서 변환한다 — 실제 입고
+  // 화면(InboundScreen)의 handlePanelSearch와 같은 매핑.
   const params: InboundSearchParams = {
-    dateFrom: flat.dateFrom,
-    dateTo: flat.dateTo,
+    startDt: flat.dateFrom ? toEpochSeconds(flat.dateFrom, false) : undefined,
+    endDt: flat.dateTo ? toEpochSeconds(flat.dateTo, true) : undefined,
     // 실 화면에서는 zod로 런타임 검증 후 좁히는 것을 권장 — 데모 페이지는 단순 캐스팅으로 축약.
-    dateField: flat.dateField as InboundSearchParams["dateField"],
+    searchDt: flat.dateField as InboundSearchParams["searchDt"],
     wmsLinkId: flat.wmsLinkId,
     status: flat.status as InboundSearchParams["status"],
-    keyword: flat.keyword,
-    page,
+    search: flat.keyword,
+    pageNo: page - 1,
     pageSize,
   };
 

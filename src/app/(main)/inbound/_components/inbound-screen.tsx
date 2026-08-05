@@ -1,19 +1,28 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState } from "react";
+import axios from "axios";
 import { SearchPanel, type SearchPanelValues, type SelectOption } from "@/components/common/search-panel";
+import { toEpochSeconds } from "@/lib/utils/datetime";
+// sortItems는 순수 목록 유틸(데이터 접근 아님) — Req에 정렬 파라미터가 없어 받은 페이지
+// 안에서만 재정렬하는 프런트 전용 정렬을 목 경로(lib/data)와 공유한다.
+import { sortItems } from "@/lib/data/utils";
 import {
+  DEFAULT_PAGE_SIZE,
   INBOUND_DATE_FIELD,
   INBOUND_DATE_FIELD_LABEL,
   INBOUND_STATUS_FILTER,
   INBOUND_STATUS_LABEL,
+  WMS_LINK_ALL,
   inboundSearchParamsSchema,
+  inboundSortValue,
+  toDomainInbound,
+  wireInboundSchema,
   type Inbound,
   type InboundSearchParams,
   type Paginated,
   type UserRole,
 } from "@/types";
-import { searchInbounds } from "../actions";
 import { InboundTable } from "./inbound-table";
 import { InboundDownloadButton } from "./inbound-download-button";
 
@@ -31,46 +40,113 @@ const STATUS_OPTIONS: SelectOption[] = INBOUND_STATUS_FILTER.map((status) => ({
   label: INBOUND_STATUS_LABEL[status],
 }));
 
-// F012 "검색결과 전체 다운로드"용 상한 — 서버 액션으로 클릭 시점에 조회하는 최대 행 수.
+// F012 "검색결과 전체 다운로드"용 상한 — 클릭 시점에 BFF로 조회하는 최대 행 수.
 const EXPORT_MAX_ROWS = 1000;
+
+/**
+ * 입고 목록 조회 — axios GET /api/inbounds(데이터 BFF). 응답은 Java Res(/dtin) 그대로의
+ * **행 배열**이다(사용자 확정 2026-08-05 — devtools 응답 = Res). 표시 전에 공용 변환
+ * (wireInboundSchema → toDomainInbound: epoch 초→ms · 0→null · 미확정 status 강등)으로
+ * 도메인 행으로 정규화한다. axios가 undefined 필드는 쿼리에서 알아서 뺀다.
+ * (서버 액션 금지 — 원칙 7. 스코핑·목 폴백은 BFF 뒤의 lib/data 몫.)
+ */
+async function fetchInboundRows(params: InboundSearchParams): Promise<Inbound[]> {
+  const { data } = await axios.get<unknown[]>("/api/inbounds", { params });
+  return data.map((raw) => toDomainInbound(wireInboundSchema.parse(raw)));
+}
+
+/** 입고 건수 조회 — GET /api/inbounds/cnt(숫자 그대로). Req 확정 스펙대로 목록과 동일
+ * 필터만 싣고 페이지·정렬 파라미터는 뺀다. */
+async function fetchInboundCount(params: InboundSearchParams): Promise<number> {
+  const filter = {
+    wmsLinkId: params.wmsLinkId,
+    startDt: params.startDt,
+    endDt: params.endDt,
+    searchDt: params.searchDt,
+    status: params.status,
+    search: params.search,
+  };
+  const { data } = await axios.get<number>("/api/inbounds/cnt", { params: filter });
+  return data;
+}
 
 interface InboundScreenProps {
   role: UserRole;
   /** WMS LINK 필터 옵션 — 페이지(서버)가 GET /wmslkmap에서 받아 매핑해 내려준다 */
   wmsLinkOptions: SelectOption[];
-  /** 첫 진입 기본 검색 조건(최근 1주 · 1페이지) — 페이지(서버)가 만든 값과 첫 데이터의 조건이 항상 같다 */
+  /** 기본 기간의 날짜 문자열("YYYY-MM-DD") — 검색 패널 입력 표시용(파라미터는 epoch 초라 별도) */
+  initialPeriod: { from: string; to: string };
+  /** 첫 진입 기본 검색 조건(최근 1주 · 1페이지, Req 계약) — 페이지(서버)가 만든 값과 첫 데이터의 조건이 항상 같다 */
   initialParams: InboundSearchParams;
   initialData: Paginated<Inbound>;
 }
-
 /**
  * 입고현황의 클라이언트 검색 상태 컨테이너 — 검색 조건을 URL에 싣지 않는다(사용자 확정
  * 2026-08-05, URL은 /inbound 고정). 조건·정렬·페이지는 전부 이 컴포넌트의 상태이고,
- * 변경 시 서버 액션(searchInbounds)으로 재조회한다(레거시 SPA와 같은 동작 — 새로고침하면
- * 기본 조건으로 초기화되고, 조건이 담긴 링크 공유는 지원하지 않는다: 의도된 트레이드오프).
+ * 변경 시 axios로 데이터 BFF(/api/inbounds)를 재조회한다(레거시 SPA와 같은 동작 —
+ * 새로고침하면 기본 조건으로 초기화되고, 조건이 담긴 링크 공유는 지원하지 않는다:
+ * 의도된 트레이드오프).
  */
-export function InboundScreen({ role, wmsLinkOptions, initialParams, initialData }: InboundScreenProps) {
+export function InboundScreen({ role, wmsLinkOptions, initialPeriod, initialParams, initialData }: InboundScreenProps) {
   const [params, setParams] = useState<InboundSearchParams>(initialParams);
   const [data, setData] = useState<Paginated<Inbound>>(initialData);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
+  // 응답 순서 역전 가드 — 마지막으로 시작한 요청만 반영한다(연타·느린 응답 대비, 레거시 관례).
+  const requestSeqRef = useRef(0);
 
-  /** 검색 상태를 바꾸고 서버 액션으로 재조회 — 응답 순서 역전은 transition이 마지막 것만 반영해 무해 */
+  /**
+   * 검색 상태를 바꾸고 BFF로 재조회 — 401(세션 만료)은 로그인으로 보낸다.
+   * 건수(/cnt)는 레거시 관례대로 **첫 페이지(pageNo 0) 조회에만** 함께 부르고,
+   * 페이지 이동 시엔 직전 total을 유지한다(필터가 바뀌는 조회는 항상 pageNo 0이라 안전).
+   * 정렬은 Req에 없어(프런트 전용) 받은 페이지 안에서만 재정렬한다.
+   */
   function runSearch(next: InboundSearchParams) {
     setParams(next);
-    startTransition(async () => {
-      setData(await searchInbounds(next));
-    });
+    const seq = ++requestSeqRef.current;
+    setLoading(true);
+    const pageNo = next.pageNo ?? 0;
+    Promise.all([fetchInboundRows(next), pageNo === 0 ? fetchInboundCount(next) : Promise.resolve(null)])
+      .then(([rows, count]) => {
+        if (requestSeqRef.current !== seq) return;
+        const items = sortItems(rows, next.sort, next.order, inboundSortValue);
+        setData((prev) => ({
+          items,
+          total: count ?? prev.total,
+          page: pageNo + 1,
+          pageSize: next.pageSize ?? DEFAULT_PAGE_SIZE,
+        }));
+      })
+      .catch((error) => {
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        console.error("[inbound] GET /api/inbounds 실패:", error);
+      })
+      .finally(() => {
+        if (requestSeqRef.current === seq) setLoading(false);
+      });
   }
 
-  // 조회/초기화 — 패널 값은 URL 시절과 동일하게 zod로 좁힌다(enum 밖 값은 필드 단위 무시).
-  // 항상 1페이지·기본 페이지 크기부터: URL 모드의 "조회 시 page/pageSize 초기화"와 같은 규칙.
+  // 조회/초기화 — 패널 값(UI 계약: dateFrom/dateTo 날짜 문자열·keyword 등)을 Req 계약
+  // (startDt/endDt epoch 초 · searchDt · search)으로 변환한 뒤 zod로 좁힌다(어긋난 필드만 무시).
+  // 항상 첫 페이지(pageNo 0)·기본 페이지 크기부터: 기존 "조회 시 페이지 초기화" 규칙 유지.
   function handlePanelSearch(values: SearchPanelValues) {
-    const parsed = inboundSearchParamsSchema.safeParse({ ...values, page: 1 });
-    runSearch(parsed.success ? parsed.data : { page: 1 });
+    const parsed = inboundSearchParamsSchema.safeParse({
+      // 전체(미선택)도 Req와 동일하게 -100을 항상 싣는다 — 빼면 Java가 조용히 0건을 준다.
+      wmsLinkId: values.wmsLinkId ?? String(WMS_LINK_ALL),
+      startDt: values.dateFrom ? toEpochSeconds(values.dateFrom, false) : undefined,
+      endDt: values.dateTo ? toEpochSeconds(values.dateTo, true) : undefined,
+      searchDt: values.dateField,
+      status: values.status,
+      search: values.keyword,
+      pageNo: 0,
+    });
+    runSearch(parsed.success ? parsed.data : { pageNo: 0 });
   }
 
   function fetchExportRows(): Promise<Inbound[]> {
-    return searchInbounds({ ...params, page: 1, pageSize: EXPORT_MAX_ROWS }).then((result) => result.items);
+    return fetchInboundRows({ ...params, pageNo: 0, pageSize: EXPORT_MAX_ROWS });
   }
 
   return (
@@ -86,7 +162,8 @@ export function InboundScreen({ role, wmsLinkOptions, initialParams, initialData
         statusOptions={STATUS_OPTIONS}
         statusLabel="입고상태"
         keywordPlaceholder="접수번호 · SKU · 상품명 검색"
-        defaultValues={initialParams}
+        // 패널 표시용 초기값 — 파라미터(epoch 초)와 별도로 날짜 문자열을 준다(같은 기간).
+        defaultValues={{ dateFrom: initialPeriod.from, dateTo: initialPeriod.to }}
         onSearch={handlePanelSearch}
         className="shrink-0"
       />
@@ -98,15 +175,16 @@ export function InboundScreen({ role, wmsLinkOptions, initialParams, initialData
         pageSize={data.pageSize}
         sort={params.sort}
         order={params.order}
-        loading={isPending}
-        onPageChange={(page) => runSearch({ ...params, page, pageSize: data.pageSize })}
-        onPageSizeChange={(pageSize) => runSearch({ ...params, pageSize, page: 1 })}
+        loading={loading}
+        // DataTable의 page는 1-기반(표기용), 파라미터 계약은 Req와 같은 pageNo(0-기반) — 여기서 변환.
+        onPageChange={(page) => runSearch({ ...params, pageNo: page - 1, pageSize: data.pageSize })}
+        onPageSizeChange={(pageSize) => runSearch({ ...params, pageSize, pageNo: 0 })}
         onSortChange={(key, order) =>
           runSearch({
             ...params,
             sort: order ? key : undefined,
             order: order ?? undefined,
-            page: 1,
+            pageNo: 0,
             pageSize: data.pageSize,
           })
         }

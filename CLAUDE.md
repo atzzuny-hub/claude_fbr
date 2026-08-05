@@ -52,16 +52,31 @@
 6. **목록 검색 조건(필터·페이지·정렬)은 URL 쿼리에 싣지 않는다**(사용자 확정 2026-08-05) —
    URL은 메뉴 경로로 고정(`/inbound` 등). 첫 진입은 페이지(서버)가 기본 조건(입고: 최근
    1주·1페이지)으로 조회해 내려주고, 이후 조회·페이지·정렬은 클라이언트 상태 +
-   **Server Action**(`app/(main)/inbound/actions.ts` 패턴, 입력은 zod 재검증)으로 갱신한다.
-   SearchPanel은 `basePath` 생략 시 이 상태 모드로 동작한다. 새로고침 시 기본 조건으로
-   초기화되고 조건 딥링크는 지원하지 않는다(레거시 SPA 동일 — 의도된 트레이드오프).
-   다른 목록 화면도 실연동 시 같은 패턴으로 전환한다(현재 목 화면들은 URL 모드 잔존)
+   **axios → 데이터 BFF Route Handler**(`app/api/inbounds/route.ts` 패턴, 쿼리는 zod
+   재검증, BFF가 lib/data 경유)로 갱신한다. **BFF의 요청·응답 계약은 Java Req/Res와
+   그대로 통일**(사용자 확정 2026-08-05 — devtools에서 보이는 것이 곧 Java 계약):
+   - 요청: `startDt`/`endDt`(epoch 초) · `searchDt` · `status` · `search` ·
+     `pageNo`(0-기반) · `pageSize` · `wmsLinkId`(전체 = -100 항상 전송) —
+     `sort`/`order`만 Req에 없는 프런트 전용. 날짜 문자열→epoch 변환은 화면
+     (`toEpochSeconds`, lib/utils/datetime)이 한다.
+   - 응답: 목록 = **Res 그대로의 행 배열**(무변환 중계 — sipDt 등 미사용 필드 포함,
+     행 스키마 검증만) · 건수 = 별도 `GET /api/inbounds/cnt`(숫자 그대로). 화면은
+     레거시 관례대로 **첫 페이지(pageNo 0) 조회에만 건수를 함께 부르고**, 페이지
+     이동 시엔 직전 total을 유지한다. 정규화(초→ms · 0→null · 미확정 status 강등)와
+     페이지 내 재정렬은 받는 쪽 공용 변환(types/inbound.ts `wireInboundSchema` ·
+     `toDomainInbound` · `inboundSortValue`)으로 화면·lib/data(SSR)가 공유한다.
+   SearchPanel은 `basePath` 생략 시 이 상태 모드로 동작한다. 새로고침 시 기본 조건으로 초기화되고 조건 딥링크는 지원하지 않는다
+   (레거시 SPA 동일 — 의도된 트레이드오프). 다른 목록 화면도 실연동 시 같은 패턴으로
+   전환한다(현재 목 화면들은 URL 모드 잔존)
+7. **Server Action을 쓰지 않는다**(사용자 확정 2026-08-05, 레거시 스타일 계승) —
+   브라우저發 데이터 조회·뮤테이션은 전부 axios → Route Handler(BFF) HTTP 호출로 한다.
+   비로그인 응답은 401 JSON(BFF)이고 리디렉션은 호출부(화면)가 담당한다
 
 ## 디렉터리 구조
 
 ```
 src/
-├── app/            # App Router 라우트 (app/api/auth = 인증 BFF 가동, 데이터 BFF는 도메인별 순차 추가)
+├── app/            # App Router 라우트 (app/api/auth = 인증 BFF · app/api/inbounds = 입고 데이터 BFF, 도메인별 순차 추가)
 ├── components/
 │   ├── ui/         # shadcn 생성 컴포넌트 (직접 수정 최소화)
 │   └── common/     # 공통 부품: SearchPanel, DataTable, StatusStepper, ExcelDownloadButton
@@ -233,8 +248,9 @@ src/
   → 3종 모두 확정 완료(2026-08-05). 진행 현황: 인증 완료 → **입고 목록·건수 실연동 +
   런타임 검증 완료**(2026-08-05, 실 로그인으로 전체 10,298건 렌더·기간 113건·취소 17건이
   API 직접 호출 대조값과 일치 — CLIENT 계정 스코핑 검증만 남음) → **WMS LINK 필터
-  실연동(/wmslkmap)·WORK 상태 편입·기본 기간 1주 적용·검색 조건 URL 제거(서버 액션
-  전환, 원칙 6)**(2026-08-05) → 입고 엑셀 서버 다운로드 · 나머지 도메인 순
+  실연동(/wmslkmap)·WORK 상태 편입·기본 기간 1주 적용·검색 조건 URL 제거(axios→데이터
+  BFF 전환, 원칙 6·7 — 서버 액션 금지)**(2026-08-05) → 입고 엑셀 서버 다운로드 ·
+  나머지 도메인 순
 
 ## 명령어
 

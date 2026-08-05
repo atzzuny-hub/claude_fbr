@@ -1,8 +1,8 @@
 // PRD: F001(입고현황 조회), F012(목록 검색·엑셀 다운로드), F013(역할별 데이터 스코핑)
 // — 입고현황 페이지 (접근 권한: 공통·데이터 스코핑, 로그인 후 기본 진입 화면)
 import { getInbounds, getWmsLinkOptions, requireSession } from "@/lib/data";
-import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, type InboundSearchParams } from "@/types";
-import { recentPeriodUtc } from "@/lib/utils/datetime";
+import { DEFAULT_PAGE_SIZE, WMS_LINK_ALL, type InboundSearchParams } from "@/types";
+import { recentPeriodUtc, toEpochSeconds } from "@/lib/utils/datetime";
 import { PageHeader } from "@/components/common/page-header";
 import type { SelectOption } from "@/components/common/search-panel";
 import { InboundScreen } from "./_components/inbound-screen";
@@ -16,10 +16,13 @@ import { InboundScreen } from "./_components/inbound-screen";
  */
 export default async function InboundPage() {
   const period = recentPeriodUtc(7); // 기본 기간 = 최근 1주(사용자 확정) — 기간은 Req 필수 파라미터
+  // 검색 파라미터는 Req와 동일 계약(startDt/endDt epoch 초 · pageNo 0-기반) — 날짜 문자열은
+  // 검색 패널 표시용으로만 따로 내려준다(initialPeriod).
   const initialParams: InboundSearchParams = {
-    dateFrom: period.from,
-    dateTo: period.to,
-    page: DEFAULT_PAGE,
+    wmsLinkId: String(WMS_LINK_ALL), // 전체 — Req와 동일하게 항상 싣는다(빼면 Java가 조용히 0건)
+    startDt: toEpochSeconds(period.from, false),
+    endDt: toEpochSeconds(period.to, true),
+    pageNo: 0,
     pageSize: DEFAULT_PAGE_SIZE,
   };
 
@@ -50,6 +53,7 @@ export default async function InboundPage() {
       <InboundScreen
         role={session.role}
         wmsLinkOptions={wmsLinkOptions}
+        initialPeriod={period}
         initialParams={initialParams}
         initialData={initialData}
       />
