@@ -197,6 +197,15 @@ src/
   부수 확정(레거시 관례): 목록 페이지 파라미터는 **0-기반**(`pageNo === 0`이 1페이지),
   건수는 1페이지 요청일 때만 조회. Swagger 문서 자체는 여전히 미확보(확정분은 사용자 제공)
 - **출고(/dtob) 확인 필요 사항 (Swagger 확인 2026-08-06 이후 잔여)**
+  - **prodList 항목은 Swagger 문서 오류(실측 확정 2026-08-06)**: 문서의 Product
+    {sku, barcode, name}과 달리 실제 응답 라인은 {idx, sku, barcode, qty, productName
+    (name 아님), productNameKr, virtualProd, productPrice, totalAmount, actualAmount,
+    codAmount, bundleItemList}다. idx·barcode 등 null인 라인이 실재해 **라인 필드는 전부
+    nullable**로 모델링(한 줄 결측으로 목록 전체 502가 나던 원인). bundleItemList(실측
+    null만 관찰)는 미모델링 — 도메인 변환에서 잘리고 BFF Res 원문 중계에는 남는다(입고
+    sipDt 취급). 백엔드에 Swagger 갱신 요청 필요
+  - 빈 파라미터(전체 기간) 조회는 Java가 수십 초~2분대까지 걸린다(실측) — 화면 기본
+    조건(최근 1주)을 항상 보내는 게 사실상 필수
   - 출고상태·배송상태의 **한국어 표시명**: 코드값은 확정이나 라벨은 전부 설계값
     (status.ts 잠정: PEND 대기 · PICK 피킹 · PACK 패킹 · COMPLETED 출고 · RETURNED 반품 ·
     P_RETURNED 부분반품 / delivery: DELIVERING 배송중 · DELIVERED 배송완료 · COMPLETED 완료 ·
