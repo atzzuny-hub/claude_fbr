@@ -126,7 +126,9 @@ src/
   types/common.ts로 공용화). 입고와 다른 점: 상태 축이 2개(status 출고상태 + delivery
   배송상태·nullable), Req의 status/delivery 필터는 **배열**(다중 선택), searchDt =
   `ORDER_DT`(주문일)|`DELIVERY_DT`(배송일) enum·라벨까지 문서 확정. **코드값 확정**:
-  status = PEND|PICK|PACK|COMPLETED|CANCELED|RETURNED|P_RETURNED|UNKNOW · delivery =
+  status = PEND|PICK|PACK|COMPLETED|CANCELED|HOLDED|RETURNED|P_RETURNED|UNKNOW
+  (HOLDED는 Swagger Res enum엔 없고 Req 예시에만 있던 값 — 사용자 확정 2026-08-07로
+  정식 편입, 입고 WORK 전례. enum 내 위치는 Req 예시 순서 계승한 설계 배치) · delivery =
   DELIVERING|DELIVERED|COMPLETED|RETURNED|UNKNOW — 단 **한국어 표시명은 여전히 설계값**
   (status.ts에 잠정 라벨 — 확인 필요, 아래 TBD). 실연동(BFF·화면)은 미착수 — lib/data는
   목 경로만(wmsLinkId=-100 센티널 등 입고 확정 관례의 출고 적용 여부는 실연동 시 검증)
@@ -203,17 +205,22 @@ src/
     codAmount, bundleItemList}다. idx·barcode 등 null인 라인이 실재해 **라인 필드는 전부
     nullable**로 모델링(한 줄 결측으로 목록 전체 502가 나던 원인). bundleItemList(실측
     null만 관찰)는 미모델링 — 도메인 변환에서 잘리고 BFF Res 원문 중계에는 남는다(입고
-    sipDt 취급). 백엔드에 Swagger 갱신 요청 필요
+    sipDt 취급). 백엔드에 Swagger 갱신 요청 필요. **코드 반영 완료(2026-08-07** —
+    types/outbound.ts·목·lib/data, 이 항목이 코드보다 먼저 기록돼 있던 상태였음**)**.
+    단 virtualProd의 값 타입은 실측 기록이 없어 boolean 추정 — 와이어에서 비불리언이
+    오면 warn 후 null 강등(toDomainOutboundProduct), 로그로 실제 타입 확인 시 스키마 승격
   - 빈 파라미터(전체 기간) 조회는 Java가 수십 초~2분대까지 걸린다(실측) — 화면 기본
     조건(최근 1주)을 항상 보내는 게 사실상 필수
   - 출고상태·배송상태의 **한국어 표시명**: 코드값은 확정이나 라벨은 전부 설계값
-    (status.ts 잠정: PEND 대기 · PICK 피킹 · PACK 패킹 · COMPLETED 출고 · RETURNED 반품 ·
-    P_RETURNED 부분반품 / delivery: DELIVERING 배송중 · DELIVERED 배송완료 · COMPLETED 완료 ·
-    RETURNED 반품) — 현행 화면 대조 후 확정. 특히 delivery의 DELIVERED와 COMPLETED 의미
-    차이 미확인(구매확정 추정)
-  - **Req·Res 예시 불일치 2건(백엔드 확인)**: Req status 예시에 `HOLDED`가 있는데 Res
-    enum에 없음(반대로 RETURNED/P_RETURNED는 Req 예시에 없음) · Req delivery 예시에
-    `CANCELED`가 있는데 Res enum에 없음 — 필터(다중 선택)는 확인 전까지 Res 기반으로 구성
+    (status.ts 잠정: PEND 접수 · PICK 피킹 · PACK 패킹 · COMPLETED 출고 · HOLDED 보류 ·
+    RETURNED 반품 · P_RETURNED 부분반품 / delivery: DELIVERING 배송중 · DELIVERED 배송완료 ·
+    COMPLETED 완료 · RETURNED 반품) — 현행 화면 대조 후 확정. 특히 delivery의 DELIVERED와
+    COMPLETED 의미 차이 미확인(구매확정 추정)
+  - **Req·Res 예시 불일치(백엔드 확인)**: ~~Req status 예시의 `HOLDED`가 Res enum에 없음~~
+    → **HOLDED 정식 편입(사용자 확정 2026-08-07)** — status enum·필터 모두 포함(잠정 라벨
+    `보류`). 잔여 2건: RETURNED/P_RETURNED가 Req 예시에 없음(Res 기반으로 필터에 포함 중 —
+    필터로 실제 검색되는지 실연동 시 검증) · Req delivery 예시에 `CANCELED`가 있는데 Res
+    enum에 없음(필터에 미포함 유지)
   - 금액 5종(totalAmount 등)의 통화 단위: 응답에 통화 필드가 없다 — 마켓/국가 통화로
     표시할지 확인 필요
   - releaseDt(출고상태 변경일)·regDt는 문서상 non-null — 입고 전례(0=값 없음)에 대비해

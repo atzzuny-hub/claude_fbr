@@ -7,12 +7,12 @@ import { addDays, compactDate, pad, pickDate, toEpoch } from "./seed-helpers";
  * Outbound 목데이터 — 출고 목록 API 응답 스키마(GET /dtob DataOutboundRes, Swagger 확정
  * 2026-08-06)를 그대로 따른다. 48건, 20개 클라이언트를 순환. 날짜류는 전부 UTC epoch
  * 밀리초(toEpoch — 도메인 모델 단위. 와이어 초 단위 되돌림은 lib/data 몫).
- * 상태는 출고(COMPLETED) 비중을 높게 두고 취소·반품·부분반품·UNKNOW(매핑 실패)도 소수 포함,
- * 출고된 행에만 배송상태·운송장·배송지 진행을 채워 두 상태 축의 조합을 화면에서 확인할 수
- * 있게 한다.
+ * 상태는 출고(COMPLETED) 비중을 높게 두고 취소·보류·반품·부분반품·UNKNOW(매핑 실패)도
+ * 소수 포함, 출고된 행에만 배송상태·운송장·배송지 진행을 채워 두 상태 축의 조합을 화면에서
+ * 확인할 수 있게 한다.
  */
 
-// 길이를 홀수(11)로 두는 이유는 inbounds.ts 상단 주석 참고
+// 길이를 홀수(13)로 두는 이유는 inbounds.ts 상단 주석 참고
 // (clientIndex와 i의 합이 항상 짝수가 되는 대칭성 문제를 피하기 위함).
 const STATUS_CYCLE: OutboundStatus[] = [
   "COMPLETED",
@@ -21,6 +21,8 @@ const STATUS_CYCLE: OutboundStatus[] = [
   "PICK",
   "COMPLETED",
   "PACK",
+  "HOLDED",
+  "COMPLETED",
   "CANCELED",
   "COMPLETED",
   "RETURNED",
@@ -38,17 +40,18 @@ const ORDER_TIMES = ["01:12:00", "08:37:00", "11:24:00", "14:03:00", "19:48:00",
 const RELEASE_TIMES = ["09:20:00", "10:55:00", "13:40:00", "16:05:00", "17:30:00"];
 const DELIVERY_TIMES = ["12:10:00", "15:35:00", "18:50:00", "20:25:00"];
 
-// 제품 목록용 카탈로그(sku/barcode/name — Swagger Product). 길이 8, 행마다 1~3줄 순환 선택.
-const PROD_TEMPLATES: OutboundProduct[] = [
-  { sku: "BJ-TONER-500", barcode: "8809115025001", name: "Glow Toner 500ml" },
-  { sku: "BJ-SERUM-050", barcode: "8809115025018", name: "Vita Serum 50ml" },
-  { sku: "BJ-CREAM-100", barcode: "8809115025025", name: "Moisture Cream 100ml" },
-  { sku: "BJ-CLEANSER-150", barcode: "8809115025032", name: "Mild Cleanser 150ml" },
-  { sku: "BJ-SUN-050", barcode: "8809115025049", name: "UV Sun Cream 50ml" },
-  { sku: "BJ-MASK-10", barcode: "8809115025056", name: "Soothing Mask 10P" },
-  { sku: "BJ-AMPOULE-030", barcode: "8809115025063", name: "Repair Ampoule 30ml" },
-  { sku: "BJ-LOTION-200", barcode: "8809115025070", name: "Daily Lotion 200ml" },
-];
+// 제품 카탈로그 — 실측 라인 스키마(문서 오류 확정 2026-08-06)의 원천 값. 길이 8, 행마다
+// 1~3줄 순환 선택하고 idx·qty·금액은 행 조립 시 계산한다.
+const PROD_TEMPLATES = [
+  { sku: "BJ-TONER-500", barcode: "8809115025001", productName: "Glow Toner 500ml", productNameKr: "글로우 토너 500ml", productPrice: 18.5 },
+  { sku: "BJ-SERUM-050", barcode: "8809115025018", productName: "Vita Serum 50ml", productNameKr: "비타 세럼 50ml", productPrice: 32 },
+  { sku: "BJ-CREAM-100", barcode: "8809115025025", productName: "Moisture Cream 100ml", productNameKr: "모이스처 크림 100ml", productPrice: 24 },
+  { sku: "BJ-CLEANSER-150", barcode: "8809115025032", productName: "Mild Cleanser 150ml", productNameKr: "마일드 클렌저 150ml", productPrice: 15 },
+  { sku: "BJ-SUN-050", barcode: "8809115025049", productName: "UV Sun Cream 50ml", productNameKr: "UV 선크림 50ml", productPrice: 21.5 },
+  { sku: "BJ-MASK-10", barcode: "8809115025056", productName: "Soothing Mask 10P", productNameKr: "수딩 마스크 10매", productPrice: 12 },
+  { sku: "BJ-AMPOULE-030", barcode: "8809115025063", productName: "Repair Ampoule 30ml", productNameKr: "리페어 앰플 30ml", productPrice: 38 },
+  { sku: "BJ-LOTION-200", barcode: "8809115025070", productName: "Daily Lotion 200ml", productNameKr: "데일리 로션 200ml", productPrice: 19 },
+] as const;
 
 // 주문 마켓·배송방식(택배사) 풀 — 동남아 커머스 현실 반영.
 const MARKETS = ["Shopee", "Lazada", "TikTok Shop"];
@@ -86,6 +89,7 @@ const ORIGINAL_CODES: Partial<Record<OutboundStatus, string>> = {
   PACK: "PACKING",
   COMPLETED: "SHIP",
   CANCELED: "CXL",
+  HOLDED: "HOLD",
   RETURNED: "RTN",
   P_RETURNED: "RTN_P",
 };
@@ -122,19 +126,53 @@ export const mockOutbounds: Outbound[] = Array.from({ length: TOTAL_OUTBOUNDS },
 
   const idx = i + 1;
 
-  // 제품 목록 1~3줄 — 템플릿을 순환 선택(실행마다 동일).
+  // 제품 목록 1~3줄 — 템플릿 순환 선택(실행마다 동일) + 실측 라인 스키마의 다양한 케이스 포함.
   const prodCount = 1 + (i % 3);
-  const prodList: OutboundProduct[] = Array.from(
-    { length: prodCount },
-    (_, j) => PROD_TEMPLATES[(i + j * 3) % PROD_TEMPLATES.length],
-  );
-
-  // 금액(double) — 마켓 통화 단위(응답에 통화 필드 없음). 프로모션은 1/4 행에만,
-  // COD는 1/3 행(동남아 COD 비중 반영). 취소 행도 주문 시점 금액은 남는다.
-  const totalAmount = 25 + ((i * 37) % 400);
-  const promotionAmount = i % 4 === 0 ? Math.round(totalAmount * 10) / 100 : 0;
-  const actualAmount = totalAmount - promotionAmount;
   const isCod = i % 3 === 0;
+  const prodList: OutboundProduct[] = Array.from({ length: prodCount }, (_, j): OutboundProduct => {
+    const template = PROD_TEMPLATES[(i + j * 3) % PROD_TEMPLATES.length];
+    const qty = 1 + ((i + j) % 3);
+    const lineTotal = Math.round(template.productPrice * qty * 100) / 100;
+    // 결측 라인(1/9 행의 첫 줄) — idx·barcode 등 null인 라인 실측 재현(옛 non-null 스키마가
+    // 이 한 줄 때문에 목록 전체 502를 내던 케이스).
+    const sparse = i % 9 === 4 && j === 0;
+    return {
+      idx: sparse ? null : idx * 10 + j + 1,
+      sku: template.sku,
+      barcode: sparse ? null : template.barcode,
+      qty,
+      productName: template.productName,
+      productNameKr: sparse ? null : template.productNameKr,
+      virtualProd: sparse ? null : false,
+      productPrice: template.productPrice,
+      totalAmount: lineTotal,
+      // 라인 실제 금액 = 라인 총액 — 프로모션은 행 단위로만 깎는다(행 actualAmount 참조).
+      actualAmount: lineTotal,
+      codAmount: isCod ? lineTotal : 0,
+    };
+  });
+  // 사은품(가상 상품) 라인 — 1/6 행의 마지막 줄(virtualProd=true, 금액 0).
+  if (i % 6 === 3) {
+    prodList.push({
+      idx: idx * 10 + prodList.length + 1,
+      sku: "BJ-GIFT-POUCH",
+      barcode: null,
+      qty: 1,
+      productName: "Gift Pouch",
+      productNameKr: "사은품 파우치",
+      virtualProd: true,
+      productPrice: 0,
+      totalAmount: 0,
+      actualAmount: 0,
+      codAmount: 0,
+    });
+  }
+
+  // 금액(double) — 마켓 통화 단위(응답에 통화 필드 없음). 행 총액은 라인 합에서 계산하고,
+  // 프로모션은 1/4 행에만, COD는 1/3 행(동남아 COD 비중 반영). 취소 행도 주문 시점 금액은 남는다.
+  const totalAmount = Math.round(prodList.reduce((sum, prod) => sum + (prod.totalAmount ?? 0), 0) * 100) / 100;
+  const promotionAmount = i % 4 === 0 ? Math.round(totalAmount * 10) / 100 : 0;
+  const actualAmount = Math.round((totalAmount - promotionAmount) * 100) / 100;
   const totalCodAmount = isCod ? actualAmount : 0;
   // 부분반품이면 COD 회수액이 줄어든 케이스를 재현한다.
   const finalCodAmount = isCod ? (status === "P_RETURNED" ? Math.round(actualAmount * 60) / 100 : actualAmount) : 0;

@@ -80,8 +80,8 @@ export async function getOutbounds(params: OutboundSearchParams = {}): Promise<P
         row.dataId,
         row.wmsLinkName,
         row.receiver?.name ?? null,
-        // 제품 목록의 SKU/상품명도 검색 대상에 포함(입고와 동일 관례)
-        ...row.prodList.flatMap((prod) => [prod.sku, prod.name]),
+        // 제품 목록의 SKU/상품명도 검색 대상에 포함(입고와 동일 관례 — 한국어 상품명까지)
+        ...row.prodList.flatMap((prod) => [prod.sku, prod.productName, prod.productNameKr]),
       )
     ) {
       return false;

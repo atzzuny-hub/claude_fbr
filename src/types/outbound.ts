@@ -21,17 +21,35 @@ import {
  *  - Req(DataOutboundSearchReq)의 status·delivery 필터는 **배열**(다중 선택 — 입고는 단일).
  *  - searchDt는 ORDER_DT(주문일) | DELIVERY_DT(배송일) 2종(Req 스키마 enum으로 확정).
  *  - 금액 5종(double)·receiver(배송지)·marketName 등 커머스 필드 포함.
+ *  - prodList는 Swagger 문서와 다른 실측 스키마(전 필드 nullable — outboundProductSchema
+ *    주석 참조. 문서 오류 확정 2026-08-06).
  *
  * 응답에 클라이언트 ID가 없는 것(clntName뿐), cntyCd가 문서 밖 국가(SG 전례)를 줄 수 있는 것,
  * CLIENT 격리가 서버 스코핑 전제인 것은 입고와 동일하다.
  */
 
-/** 제품 목록 한 줄(Swagger Product) — 문서에 nullable 표기가 없어 그대로 두되,
- * 실측에서 null/빈 값이 확인되면 입고 전례(etaDt 등)처럼 느슨하게 조정한다. */
+/** 제품 목록 한 줄 — ⚠️ Swagger 문서의 Product {sku, barcode, name}은 **문서 오류**(실측
+ * 확정 2026-08-06, CLAUDE.md prodList 항목): 실제 응답 라인은 아래 필드 구성이다(name이
+ * 아니라 productName). idx·barcode 등이 null인 라인이 실재해 **전 필드 nullable** — 한 줄의
+ * 결측이 목록 전체 오류(502)가 되지 않게 한다. bundleItemList(실측에서 null만 관찰)는
+ * 미모델링 — 도메인 변환에서 잘리고 BFF Res 원문 중계에는 남는다(입고 sipDt 취급).
+ * 백엔드에 Swagger 갱신 요청 필요. */
 export const outboundProductSchema = z.object({
-  sku: z.string(), // SKU
-  barcode: z.string(), // Barcode
-  name: z.string(), // 제품명
+  idx: z.number().int().nullable(), // 라인 고유 번호
+  sku: z.string().nullable(), // SKU
+  barcode: z.string().nullable(), // Barcode
+  qty: z.number().int().nullable(), // 수량
+  productName: z.string().nullable(), // 제품명
+  productNameKr: z.string().nullable(), // 제품명(한국어)
+  // 가상 상품 여부 — 실측 기록에 값 타입이 남아 있지 않아 boolean 추정. 와이어에서 boolean이
+  // 아닌 값이 오면 toDomainOutbound가 warn 후 null로 강등한다(미확정 status의 UNKNOW 강등과
+  // 같은 관례 — 실측 타입 확보 시 스키마로 승격).
+  virtualProd: z.boolean().nullable(),
+  // 금액류(double) — 행 금액과 동일하게 0도 유효값이라 0→null 변환은 하지 않는다.
+  productPrice: z.number().nullable(), // 단가
+  totalAmount: z.number().nullable(), // 라인 총 금액
+  actualAmount: z.number().nullable(), // 라인 실제 금액
+  codAmount: z.number().nullable(), // 라인 COD 금액
 });
 export type OutboundProduct = z.infer<typeof outboundProductSchema>;
 
@@ -62,7 +80,7 @@ export const outboundSchema = z.object({
   marketName: z.string().nullable(), // 주문 마켓이름 (예: Shopee)
   orderDt: z.number().int().nullable(), // 주문일 (UTC epoch ms)
   statusOriginalCode: z.string().nullable(), // 출고상태 원본 코드(WMS 원문)
-  status: outboundStatusSchema, // 출고상태 (PEND | PICK | PACK | COMPLETED | CANCELED | RETURNED | P_RETURNED | UNKNOW)
+  status: outboundStatusSchema, // 출고상태 (PEND | PICK | PACK | COMPLETED | CANCELED | HOLDED | RETURNED | P_RETURNED | UNKNOW)
   deliveryOriginalCode: z.string().nullable(), // 배송상태 원본 코드(WMS 원문)
   delivery: outboundDeliverySchema.nullable(), // 배송상태 — 배송 단계 전이면 null
   // 출고상태 변경일 (UTC epoch ms) — 문서상 non-null이지만 값 없음 = 0 와이어 전례(입고
@@ -92,13 +110,58 @@ export type Outbound = z.infer<typeof outboundSchema>;
 // 중계하고, 실측 확정된 와이어 특성(① 날짜 epoch "초" ② 값 없음 0 ③ 문서 밖 상태 실재
 // 전례 — 입고 WORK)의 정규화는 받는 쪽(화면·lib/data)이 공용 변환으로 수행한다.
 
+/** 와이어 제품 라인 스키마 — 결측이 null·키 생략 어느 쪽으로 와도 라인 하나 때문에 목록이
+ * 죽지 않게 전부 nullish로 받는다(도메인 변환이 null로 정규화). virtualProd는 타입 실측이
+ * 없어 unknown으로 받고 변환에서 boolean만 채택한다. bundleItemList는 미선언 — zod 기본
+ * strip으로 도메인 변환에서 잘린다(BFF 원문 중계에는 남음). */
+export const wireOutboundProductSchema = z.object({
+  idx: z.number().int().nullish(),
+  sku: z.string().nullish(),
+  barcode: z.string().nullish(),
+  qty: z.number().int().nullish(),
+  productName: z.string().nullish(),
+  productNameKr: z.string().nullish(),
+  virtualProd: z.unknown().optional(), // .optional() — zod는 unknown도 키 생략은 별도 허용이 필요하다
+  productPrice: z.number().nullish(),
+  totalAmount: z.number().nullish(),
+  actualAmount: z.number().nullish(),
+  codAmount: z.number().nullish(),
+});
+export type WireOutboundProduct = z.infer<typeof wireOutboundProductSchema>;
+
+/** 와이어 라인 → 도메인 라인 — 키 생략·빈 문자열을 null로 정규화, virtualProd는 boolean만
+ * 채택(그 외 타입은 warn 후 null — 로그로 실제 타입을 발견하면 스키마로 승격한다). */
+function toDomainOutboundProduct(line: WireOutboundProduct, rowIdx: number): OutboundProduct {
+  let virtualProd: boolean | null = null;
+  if (typeof line.virtualProd === "boolean") {
+    virtualProd = line.virtualProd;
+  } else if (line.virtualProd != null) {
+    console.warn(`[outbound] virtualProd 비불리언 값(${typeof line.virtualProd}) (행 idx ${rowIdx}) — null로 표시`);
+  }
+  return {
+    idx: line.idx ?? null,
+    sku: wireTextToNull(line.sku ?? null),
+    barcode: wireTextToNull(line.barcode ?? null),
+    qty: line.qty ?? null,
+    productName: wireTextToNull(line.productName ?? null),
+    productNameKr: wireTextToNull(line.productNameKr ?? null),
+    virtualProd,
+    productPrice: line.productPrice ?? null,
+    totalAmount: line.totalAmount ?? null,
+    actualAmount: line.actualAmount ?? null,
+    codAmount: line.codAmount ?? null,
+  };
+}
+
 /** 와이어 행 스키마 — status/delivery는 임의 문자열(→ toDomainOutbound에서 판정),
- * 문서상 non-null 날짜(releaseDt/regDt)는 0 허용 non-null로 되돌린다. */
+ * 문서상 non-null 날짜(releaseDt/regDt)는 0 허용 non-null로 되돌리고, prodList는
+ * 실측 라인 스키마(전 필드 nullish)로 받는다. */
 export const wireOutboundSchema = outboundSchema.extend({
   status: z.string(),
   delivery: z.string().nullable(),
   releaseDt: z.number().int(),
   regDt: z.number().int(),
+  prodList: z.array(wireOutboundProductSchema),
 });
 export type WireOutbound = z.infer<typeof wireOutboundSchema>;
 
@@ -119,6 +182,7 @@ export function toDomainOutbound(wire: WireOutbound): Outbound {
     ...wire,
     status: statusKnown ? (wire.status as Outbound["status"]) : "UNKNOW",
     delivery: deliveryText === null ? null : deliveryKnown ? (deliveryText as OutboundDelivery) : "UNKNOW",
+    prodList: wire.prodList.map((line) => toDomainOutboundProduct(line, wire.idx)),
     statusOriginalCode: wireTextToNull(wire.statusOriginalCode),
     deliveryOriginalCode: wireTextToNull(wire.deliveryOriginalCode),
     ganNo: wireTextToNull(wire.ganNo),
