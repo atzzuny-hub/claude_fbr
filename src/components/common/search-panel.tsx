@@ -78,6 +78,7 @@ export interface SearchPanelValues {
   dateField?: string;
   wmsLinkId?: string;
   status?: string;
+  delivery?:string;
   clientId?: string;
   country?: string;
   keyword?: string;
@@ -103,6 +104,10 @@ export interface SearchPanelProps {
    * 화면마다 상태의 이름이 다르므로(입고현황=입고상태) 목록의 상태 컬럼명과 같은 값을 넘긴다.
    */
   statusLabel?: string;
+  /** 배송상태 select 옵션(출고 전용 — 상태 축이 둘인 화면의 두 번째 축). 미지정 시 필드 숨김 */
+  deliveryOptions?: SelectOption[];
+  /** 배송상태 select의 표시 라벨(선택) — 기본 "배송" */
+  deliveryLabel?: string;
   /** 클라이언트 select 옵션(OPERATOR 전용) — wmsLinkId 포함, WMS 선택 시 이 값 기준으로 좁혀진다 */
   clientOptions?: ClientFilterOption[];
   /** 국가 select 옵션(OPERATOR 전용, 선택) — 미지정 시 필드 숨김 */
@@ -124,8 +129,8 @@ export interface SearchPanelProps {
  * 값 형태는 BaseSearchParams(@/types/common)와 1:1 대응한다.
  * 기간 초기값은 최근 1주(시작일 = 오늘-7일, 종료일 = 오늘) — URL에 값이 없을 때만 채워지고,
  * 초기화 버튼도 빈값이 아니라 이 초기값으로 되돌린다. 조회를 눌러야 목록에 적용된다.
- * 도메인 옵션(wmsLinkOptions/dateFieldOptions/statusOptions/clientOptions/countryOptions)은
- * 전부 props 주입 — 이 컴포넌트는 어떤 도메인 상태값도 하드코딩하지 않는다.
+ * 도메인 옵션(wmsLinkOptions/dateFieldOptions/statusOptions/deliveryOptions/clientOptions/
+ * countryOptions)은 전부 props 주입 — 이 컴포넌트는 어떤 도메인 상태값도 하드코딩하지 않는다.
  *
  * 필드 구성은 화면마다 다르다: select 필터는 **옵션을 넘긴 것만 렌더링**하므로, 페이지가 넘기는
  * props가 곧 그 화면의 검색 조건이다(예: 입고현황 = WMS LINK·시작일·종료일·기준일자·검색어).
@@ -141,6 +146,8 @@ export function SearchPanel({
   dateFieldOptions,
   statusOptions,
   statusLabel = "상태",
+  deliveryOptions,
+  deliveryLabel = "배송",
   clientOptions,
   countryOptions,
   keywordPlaceholder,
@@ -158,6 +165,7 @@ export function SearchPanel({
   const [dateField, setDateField] = useState(defaultValues?.dateField ?? dateFieldOptions[0]?.value ?? "");
   const [wmsLinkId, setWmsLinkId] = useState(defaultValues?.wmsLinkId ?? ALL);
   const [status, setStatus] = useState(defaultValues?.status ?? ALL);
+  const [delivery, setDelivery] = useState(defaultValues?.delivery ?? ALL);
   const [clientId, setClientId] = useState(defaultValues?.clientId ?? ALL);
   const [country, setCountry] = useState(defaultValues?.country ?? ALL);
   const [keyword, setKeyword] = useState(defaultValues?.keyword ?? "");
@@ -194,12 +202,14 @@ export function SearchPanel({
   const hasWmsFilter = (wmsLinkOptions?.length ?? 0) > 0;
   const hasDateFieldFilter = dateFieldOptions.length > 0;
   const hasStatusFilter = (statusOptions?.length ?? 0) > 0;
+  const hasDeliveryFilter = (deliveryOptions?.length ?? 0) > 0;
   const hasClientFilter = isOperator && clientOptions !== undefined;
   const hasCountryFilter = isOperator && (countryOptions?.length ?? 0) > 0;
 
   // 아래 items는 Select.Root에도 넘긴다 — 그래야 트리거가 원시 value("ALL") 대신 라벨("전체")을 렌더한다.
   const wmsItems = useMemo(() => withAllOption(wmsLinkOptions ?? []), [wmsLinkOptions]);
   const statusItems = useMemo(() => withAllOption(statusOptions ?? []), [statusOptions]);
+  const deliveryItems = useMemo(() => withAllOption(deliveryOptions ?? []), [deliveryOptions]);
   const clientItems = useMemo(() => withAllOption(scopedClientOptions), [scopedClientOptions]);
   const countryItems = useMemo(() => withAllOption(countryOptions ?? []), [countryOptions]);
 
@@ -218,6 +228,7 @@ export function SearchPanel({
       dateField: hasDateFieldFilter ? dateField || undefined : undefined,
       wmsLinkId: hasWmsFilter && wmsLinkId !== ALL ? wmsLinkId : undefined,
       status: hasStatusFilter && status !== ALL ? status : undefined,
+      delivery: hasDeliveryFilter && delivery !== ALL ? delivery : undefined,
       clientId: hasClientFilter && clientId !== ALL ? clientId : undefined,
       country: hasCountryFilter && country !== ALL ? country : undefined,
       keyword: keyword.trim() || undefined,
@@ -241,6 +252,7 @@ export function SearchPanel({
     setDateField(dateFieldOptions[0]?.value ?? "");
     setWmsLinkId(ALL);
     setStatus(ALL);
+    setDelivery(ALL);
     setClientId(ALL);
     setCountry(ALL);
     setKeyword("");
@@ -340,6 +352,27 @@ export function SearchPanel({
               </SelectTrigger>
               <SelectContent>
                 {statusItems.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+
+        {hasDeliveryFilter && (
+          <Field label={deliveryLabel} htmlFor={`${uid}-delivery`}>
+            <Select
+              items={deliveryItems}
+              value={delivery}
+              onValueChange={(value) => setDelivery(value as string)}
+            >
+              <SelectTrigger id={`${uid}-delivery`} className={cn(CONTROL_CLASS, "w-44")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {deliveryItems.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
