@@ -5,6 +5,7 @@ import { DEFAULT_PAGE_SIZE, OUTBOUND_DATE_FIELD, OUTBOUND_DATE_FIELD_LABEL, OUTB
 import { getWmsLinkOptions, requireSession } from "@/lib/data";
 import { OutboundTable } from "./_components/outbound-table";
 import { recentPeriodKst, toEpochSeconds } from "@/lib/utils/datetime";
+import { headers } from "next/headers";
 
 
 
@@ -19,6 +20,22 @@ export default async function OutboundPage() {
         // WMS LINK 필터 옵션 출처 = GET /wmslkmap(확정) — WMS 메뉴(목)와 별개로 실 옵션을 쓴다.
         getWmsLinkOptions(),
     ]);
+
+    // ⚠️ 임시 확인용(골격 점검): 데이터 BFF(GET /api/dtob)를 호출해 응답을 콘솔로 확인한다.
+    // RSC가 자기 서버의 Route Handler를 fetch로 도는 건 이 점검에서만 — 원래 서버 조회는
+    // lib/data 직접 호출이고(원칙 2), 이 HTTP 경로는 브라우저(axios) 몫이다. 상대 URL은
+    // 서버 fetch에서 못 쓰므로 요청 host로 조립하고, BFF의 세션 가드(401)를 통과하려면
+    // 쿠키를 수동으로 넘겨야 한다. 로그는 dev 서버 터미널에 찍힌다(브라우저 콘솔에도 미러링).
+    const h = await headers();
+    const bffRes = await fetch(`http://${h.get("host")}/api/dtob`, {
+        headers: { cookie: h.get("cookie") ?? "" },
+        cache: "no-store",
+    });
+    console.log(
+        "[dtob 골격 점검] GET /api/dtob →",
+        bffRes.status,
+        bffRes.ok ? await bffRes.json() : await bffRes.text(),
+    );
 
     // 기준일자 후보 = Req의 searchDt 코드(주문일 ORDER_DT · 배송일 DELIVERY_DT — Swagger enum 확정).
     const DATE_FIELD_OPTIONS: SelectOption[] = OUTBOUND_DATE_FIELD.map((field) => ({
